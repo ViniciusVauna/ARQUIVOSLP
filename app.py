@@ -70,6 +70,32 @@ hr { border-color: #e0e0e0 !important; margin: 1.5rem 0 !important; }
 [data-testid="stDownloadButton"] > button { background: #1a73e8 !important; color: #ffffff !important; border: none !important; font-weight: 600 !important; border-radius: 8px !important; }
 [data-testid="stDownloadButton"] > button:hover { background: #1557b0 !important; }
 
+/* TABELA FUNDO BRANCO LETRAS PRETAS */
+[data-testid="stDataFrame"] { background: #ffffff !important; border-radius: 10px !important; }
+[data-testid="stDataFrame"] * { color: #1a1a2e !important; }
+[data-testid="stDataFrame"] th { background: #f8f8f8 !important; color: #1a1a2e !important; font-weight: 700 !important; }
+[data-testid="stDataFrame"] td { background: #ffffff !important; color: #1a1a2e !important; }
+[data-testid="stDataFrame"] tr:hover td { background: #f5f5f5 !important; }
+.dvn-scroller { background: #ffffff !important; }
+.dvn-scroller * { color: #1a1a2e !important; }
+
+/* FILTROS FUNDO BRANCO */
+[data-baseweb="select"] { background: #ffffff !important; }
+[data-baseweb="select"] * { background: #ffffff !important; color: #1a1a2e !important; }
+[data-baseweb="popover"] { background: #ffffff !important; }
+[data-baseweb="popover"] * { background: #ffffff !important; color: #1a1a2e !important; }
+[data-baseweb="menu"] { background: #ffffff !important; }
+[data-baseweb="menu"] li { color: #1a1a2e !important; background: #ffffff !important; }
+[data-baseweb="menu"] li:hover { background: #f0f0f0 !important; }
+[data-baseweb="tag"] { background: #e8f0fe !important; }
+[data-baseweb="tag"] span { color: #1a73e8 !important; }
+[role="listbox"] { background: #ffffff !important; }
+[role="listbox"] * { color: #1a1a2e !important; background: #ffffff !important; }
+[role="option"] { background: #ffffff !important; color: #1a1a2e !important; }
+[role="option"]:hover { background: #f0f0f0 !important; }
+input { background: #ffffff !important; color: #1a1a2e !important; }
+.stMultiSelect [data-baseweb="input"] { background: #ffffff !important; }
+
 /* SIDEBAR */
 section[data-testid="stSidebar"] { background-color: #1a1a2e !important; }
 section[data-testid="stSidebar"] .stImage img { filter: brightness(10); }

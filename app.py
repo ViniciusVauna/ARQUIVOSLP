@@ -55,8 +55,7 @@ st.markdown("""
 [data-testid="stToolbar"] { display: none !important; }
 .block-container { padding: 1.5rem 2rem 2rem 2rem !important; max-width: 100% !important; }
 .stApp { background: #f0f0f0 !important; }
-body, p, span, div, label { font-family: 'DM Sans', sans-serif !important; color: #1a1a2e !important; }
-[data-testid='stDataFrame'] * { color: #1a1a2e !important; }
+body { font-family: 'DM Sans', sans-serif !important; color: #1a1a2e !important; }
 [data-testid="stMetric"] { background: #ffffff; border-radius: 10px; padding: 16px 18px !important; border-top: 3px solid #ffe600; box-shadow: 0 2px 6px rgba(0,0,0,0.07); }
 [data-testid="stMetricLabel"] { color: #888888 !important; font-size: 10px !important; font-weight: 700 !important; text-transform: uppercase; letter-spacing: 0.8px; }
 [data-testid="stMetricValue"] { color: #1a1a2e !important; font-size: 26px !important; font-weight: 800 !important; }
@@ -70,14 +69,8 @@ hr { border-color: #e0e0e0 !important; margin: 1.5rem 0 !important; }
 [data-testid="stDownloadButton"] > button { background: #1a73e8 !important; color: #ffffff !important; border: none !important; font-weight: 600 !important; border-radius: 8px !important; }
 [data-testid="stDownloadButton"] > button:hover { background: #1557b0 !important; }
 
-/* TABELA FUNDO BRANCO LETRAS PRETAS */
-[data-testid="stDataFrame"] { background: #ffffff !important; border-radius: 10px !important; }
-[data-testid="stDataFrame"] * { color: #1a1a2e !important; }
-[data-testid="stDataFrame"] th { background: #f8f8f8 !important; color: #1a1a2e !important; font-weight: 700 !important; }
-[data-testid="stDataFrame"] td { background: #ffffff !important; color: #1a1a2e !important; }
-[data-testid="stDataFrame"] tr:hover td { background: #f5f5f5 !important; }
-.dvn-scroller { background: #ffffff !important; }
-.dvn-scroller * { color: #1a1a2e !important; }
+/* TABELA */
+[data-testid="stDataFrame"] { border-radius: 10px !important; box-shadow: 0 2px 6px rgba(0,0,0,0.07) !important; }
 
 /* FILTROS FUNDO BRANCO */
 [data-baseweb="select"] { background: #ffffff !important; }

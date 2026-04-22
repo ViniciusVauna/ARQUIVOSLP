@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
 
-st.set_page_config(page_title="Loss Prevention — BRSP06", layout="wide", page_icon="🔵", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Loss Prevention — BRSP06", layout="wide", page_icon="🔵")
 
 CSV_URL = "https://raw.githubusercontent.com/ViniciusVauna/ARQUIVOSLP/main/data.csv"
 
@@ -63,59 +63,11 @@ body { font-family: 'DM Sans', sans-serif !important; color: #1a1a2e !important;
 [data-testid="stProgress"] > div > div { background: #ffe600 !important; border-radius: 4px !important; }
 [data-testid="stProgress"] > div { background: #e0e0e0 !important; border-radius: 4px !important; height: 8px !important; }
 hr { border-color: #e0e0e0 !important; margin: 1.5rem 0 !important; }
-[data-testid="stDataFrame"] { border-radius: 10px !important; box-shadow: 0 2px 6px rgba(0,0,0,0.07) !important; }
+[data-testid="stDataFrame"] { border-radius: 10px !important; box-shadow: 0 2px 6px rgba(0,0,0,0.07) !important; background: #ffffff !important; }
 .section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #888888; margin-bottom: 12px; border-left: 3px solid #ffe600; padding-left: 10px; }
 .placeholder-box { background: #ffffff; border: 2px dashed #d0d0d0; border-radius: 12px; padding: 60px 40px; text-align: center; margin: 20px 0; }
 [data-testid="stDownloadButton"] > button { background: #1a73e8 !important; color: #ffffff !important; border: none !important; font-weight: 600 !important; border-radius: 8px !important; }
 [data-testid="stDownloadButton"] > button:hover { background: #1557b0 !important; }
-
-/* TABELA */
-[data-testid="stDataFrame"] { border-radius: 10px !important; box-shadow: 0 2px 6px rgba(0,0,0,0.07) !important; }
-
-/* FILTROS FUNDO BRANCO */
-[data-baseweb="select"] { background: #ffffff !important; }
-[data-baseweb="select"] * { background: #ffffff !important; color: #1a1a2e !important; }
-[data-baseweb="popover"] { background: #ffffff !important; }
-[data-baseweb="popover"] * { background: #ffffff !important; color: #1a1a2e !important; }
-[data-baseweb="menu"] { background: #ffffff !important; }
-[data-baseweb="menu"] li { color: #1a1a2e !important; background: #ffffff !important; }
-[data-baseweb="menu"] li:hover { background: #f0f0f0 !important; }
-[data-baseweb="tag"] { background: #e8f0fe !important; }
-[data-baseweb="tag"] span { color: #1a73e8 !important; }
-[role="listbox"] { background: #ffffff !important; }
-[role="listbox"] * { color: #1a1a2e !important; background: #ffffff !important; }
-[role="option"] { background: #ffffff !important; color: #1a1a2e !important; }
-[role="option"]:hover { background: #f0f0f0 !important; }
-input { background: #ffffff !important; color: #1a1a2e !important; }
-.stMultiSelect [data-baseweb="input"] { background: #ffffff !important; }
-
-/* SIDEBAR */
-section[data-testid="stSidebar"] { background-color: #1a1a2e !important; }
-section[data-testid="stSidebar"] .stImage img { filter: brightness(10); }
-section[data-testid="stSidebar"] p,
-section[data-testid="stSidebar"] span,
-section[data-testid="stSidebar"] small { color: #9ca3af !important; }
-section[data-testid="stSidebar"] div.stButton button {
-    background: transparent !important;
-    color: #d1d5db !important;
-    border: none !important;
-    border-radius: 8px !important;
-    font-size: 13px !important;
-    font-weight: 500 !important;
-    text-align: left !important;
-    padding: 8px 12px !important;
-    font-family: 'DM Sans', sans-serif !important;
-}
-section[data-testid="stSidebar"] div.stButton button:hover {
-    background: rgba(255,255,255,0.08) !important;
-    color: #ffffff !important;
-}
-section[data-testid="stSidebar"] div.stButton button[kind="primary"] {
-    background: #ffe600 !important;
-    color: #1a1a2e !important;
-    font-weight: 700 !important;
-}
-section[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.1) !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -125,9 +77,9 @@ if 'page' not in st.session_state:
 
 # ── SIDEBAR ────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.image("https://http2.mlstatic.com/frontend-assets/ui-navigation/5.21.3/mercadolibre/logo__large_plus.png", width=160)
+    st.image("https://http2.mlstatic.com/frontend-assets/ui-navigation/5.21.3/mercadolibre/logo__large_plus.png", width=130)
     st.markdown("---")
-    st.markdown("<p style='color:#9ca3af;font-size:10px;letter-spacing:2px;text-transform:uppercase;padding:0 4px;margin-bottom:6px'>LOSS PREVENTION · BRSP06</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#4b5563;font-size:10px;letter-spacing:2px;text-transform:uppercase;padding:0 4px;margin-bottom:6px'>LOSS PREVENTION</p>", unsafe_allow_html=True)
 
     pages = [
         ('caca_lost',       '🎯', 'Evolução Caça Lost'),
@@ -147,15 +99,6 @@ with st.sidebar:
         st.rerun()
     st.caption(f"🟡 Auto-atualização 8h e 14h")
     st.caption(f"BRSP06 · {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-
-# ── SIDEBAR TOGGLE FIX ────────────────────────────────────────────────────────
-st.markdown("""
-<style>
-[data-testid="collapsedControl"] { display: none !important; }
-section[data-testid="stSidebar"] { min-width: 240px !important; width: 240px !important; transform: none !important; }
-section[data-testid="stSidebar"][aria-expanded="false"] { min-width: 240px !important; margin-left: 0 !important; }
-</style>
-""", unsafe_allow_html=True)
 
 # ── HEADER ─────────────────────────────────────────────────────────────────────
 page_titles = {
@@ -199,6 +142,81 @@ if st.session_state.page == 'caca_lost':
     if not future_weeks: future_weeks = valid_weeks
     NEXT_4 = future_weeks[:4]
     CUR    = future_weeks[0] if future_weeks else ''
+
+    # ── SEMANA ATUAL ──────────────────────────────────────────────────────────
+    st.markdown(f'<div class="section-label">Semana atual — {CUR} · Due Date</div>', unsafe_allow_html=True)
+
+    df_cur = df[df['WEEK_DUE_DATE'] == CUR].copy()
+    df_cur['fin'] = df_cur.apply(is_finalizado, axis=1)
+    df_cur['rec'] = df_cur.apply(lambda r: r['PENDING_USD'] if (
+        r['STATUS_BUSCA_ORIGEN'] in FOUND_SET or r['STATUS_REVISAO_ORIGEN'] in FOUND_SET) else 0, axis=1)
+
+    total     = len(df_cur)
+    usd_total = df_cur['PENDING_USD'].sum()
+    usd_rec   = df_cur['rec'].sum()
+    usd_pend  = df_cur[~df_cur['fin']]['PENDING_USD'].sum()
+    n_fin     = int(df_cur['fin'].sum())
+    pct_fin   = round(n_fin/total*100,1) if total else 0
+    n_pb      = int((df_cur['STATUS_BUSCA_ORIGEN']=='').sum())
+    n_pr      = int((df_cur['STATUS_REVISAO_ORIGEN']=='').sum())
+    pct_b     = round((total-n_pb)/total*100,1) if total else 0
+    pct_r     = round((total-n_pr)/total*100,1) if total else 0
+
+    k1,k2,k3,k4,k5 = st.columns(5)
+    k1.metric("Total issues", f"{total:,}", "due esta semana")
+    k2.metric("USD total", f"${usd_total:,.0f}")
+    k3.metric("USD pendente", f"${usd_pend:,.0f}", f"{total-n_fin} em aberto", delta_color="inverse")
+    k4.metric("USD recuperado", f"${usd_rec:,.0f}", "Found Inv./LP")
+    k5.metric("% Conclusão", f"{pct_fin}%", f"{n_fin} de {total}")
+
+    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+
+    col_b, col_r = st.columns(2)
+    with col_b:
+        cb = pct_color(pct_b)
+        st.markdown(f"""
+        <div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,0.04)'>
+            <p style='font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin:0 0 8px'>Processo de Busca</p>
+            <div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'>
+                <span style='font-size:34px;font-weight:800;color:{cb}'>{pct_b}%</span>
+                <div style='text-align:right'>
+                    <div style='font-size:12px;color:#6b7280'>{total-n_pb:,} concluídas</div>
+                    <div style='font-size:12px;color:#dc2626;font-weight:700'>{n_pb:,} faltam</div>
+                </div>
+            </div>
+        </div>""", unsafe_allow_html=True)
+        st.progress(pct_b/100)
+        if n_pb > 0:
+            st.caption("Pendentes por processo")
+            df_pb = df_cur[df_cur['STATUS_BUSCA_ORIGEN']=='']['FBM_PROCCESS_NAME'].value_counts().head(5).reset_index()
+            df_pb.columns = ['Processo','Qtd']
+            fig = go.Figure(go.Bar(x=df_pb['Qtd'], y=df_pb['Processo'], orientation='h',
+                marker_color='#1d4ed8', text=df_pb['Qtd'], textposition='outside', textfont=dict(color='#111827')))
+            st.plotly_chart(chart_style(fig, 180), use_container_width=True)
+
+    with col_r:
+        cr = pct_color(pct_r)
+        st.markdown(f"""
+        <div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,0.04)'>
+            <p style='font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin:0 0 8px'>Processo de Revisão</p>
+            <div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'>
+                <span style='font-size:34px;font-weight:800;color:{cr}'>{pct_r}%</span>
+                <div style='text-align:right'>
+                    <div style='font-size:12px;color:#6b7280'>{total-n_pr:,} concluídas</div>
+                    <div style='font-size:12px;color:#dc2626;font-weight:700'>{n_pr:,} faltam</div>
+                </div>
+            </div>
+        </div>""", unsafe_allow_html=True)
+        st.progress(pct_r/100)
+        if n_pr > 0:
+            st.caption("Pendentes por processo")
+            df_pr = df_cur[df_cur['STATUS_REVISAO_ORIGEN']=='']['FBM_PROCCESS_NAME'].value_counts().head(5).reset_index()
+            df_pr.columns = ['Processo','Qtd']
+            fig = go.Figure(go.Bar(x=df_pr['Qtd'], y=df_pr['Processo'], orientation='h',
+                marker_color='#2563eb', text=df_pr['Qtd'], textposition='outside', textfont=dict(color='#111827')))
+            st.plotly_chart(chart_style(fig, 180), use_container_width=True)
+
+    st.divider()
 
     # ── 4 SEMANAS ─────────────────────────────────────────────────────────────
     st.markdown('<div class="section-label">Semana atual + próximas 3 · progresso de busca & revisão</div>', unsafe_allow_html=True)

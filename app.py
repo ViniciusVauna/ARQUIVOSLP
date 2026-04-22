@@ -68,6 +68,34 @@ hr { border-color: #e0e0e0 !important; margin: 1.5rem 0 !important; }
 .placeholder-box { background: #ffffff; border: 2px dashed #d0d0d0; border-radius: 12px; padding: 60px 40px; text-align: center; margin: 20px 0; }
 [data-testid="stDownloadButton"] > button { background: #1a73e8 !important; color: #ffffff !important; border: none !important; font-weight: 600 !important; border-radius: 8px !important; }
 [data-testid="stDownloadButton"] > button:hover { background: #1557b0 !important; }
+
+/* SIDEBAR */
+section[data-testid="stSidebar"] { background-color: #1a1a2e !important; }
+section[data-testid="stSidebar"] .stImage img { filter: brightness(10); }
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] span,
+section[data-testid="stSidebar"] small { color: #9ca3af !important; }
+section[data-testid="stSidebar"] div.stButton button {
+    background: transparent !important;
+    color: #d1d5db !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    text-align: left !important;
+    padding: 8px 12px !important;
+    font-family: 'DM Sans', sans-serif !important;
+}
+section[data-testid="stSidebar"] div.stButton button:hover {
+    background: rgba(255,255,255,0.08) !important;
+    color: #ffffff !important;
+}
+section[data-testid="stSidebar"] div.stButton button[kind="primary"] {
+    background: #ffe600 !important;
+    color: #1a1a2e !important;
+    font-weight: 700 !important;
+}
+section[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.1) !important; }
 </style>
 """, unsafe_allow_html=True)
 

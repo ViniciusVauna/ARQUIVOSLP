@@ -50,52 +50,135 @@ def get_current_week():
 # ── CSS ────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-[data-testid="stHeader"] { display: none !important; }
-.block-container { padding: 2rem 2.5rem !important; max-width: 100% !important; }
-html, body, .stApp { background: #f8fafc !important; font-family: 'Inter', sans-serif !important; color: #111827 !important; }
+@import url('https://fonts.googleapis.com/css2?family=Proxima+Nova:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
 
-[data-testid="stSidebar"] { background: #111827 !important; }
+[data-testid="stHeader"] { display: none !important; }
+.block-container { padding: 0 !important; max-width: 100% !important; }
+html, body, .stApp {
+    background: #eeeeee !important;
+    font-family: 'Inter', 'Proxima Nova', sans-serif !important;
+    color: #333333 !important;
+}
+
+/* TOPBAR AMARELA */
+[data-testid="stAppViewContainer"] > div:first-child {
+    background: #eeeeee !important;
+}
+
+/* SIDEBAR */
+[data-testid="stSidebar"] {
+    background: #ffffff !important;
+    border-right: 1px solid #e0e0e0 !important;
+}
 [data-testid="stSidebar"] p,
 [data-testid="stSidebar"] span,
-[data-testid="stSidebar"] caption { color: #9ca3af !important; }
+[data-testid="stSidebar"] caption { color: #666666 !important; }
 [data-testid="stSidebar"] div.stButton > button {
-    background: transparent !important; color: #9ca3af !important;
-    border: none !important; border-radius: 8px !important;
-    font-size: 13px !important; font-weight: 500 !important;
-    width: 100% !important; text-align: left !important; padding: 9px 14px !important;
+    background: transparent !important;
+    color: #333333 !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    width: 100% !important;
+    text-align: left !important;
+    padding: 9px 14px !important;
 }
 [data-testid="stSidebar"] div.stButton > button:hover {
-    background: rgba(255,255,255,0.06) !important; color: #ffffff !important;
+    background: #f5f5f5 !important;
+    color: #333333 !important;
 }
 [data-testid="stSidebar"] div.stButton > button[kind="primary"] {
-    background: #ffe600 !important; color: #111827 !important; font-weight: 700 !important;
+    background: #ffe600 !important;
+    color: #333333 !important;
+    font-weight: 700 !important;
 }
 
+/* CONTEÚDO PRINCIPAL */
+.main > div { padding: 1.5rem 2rem !important; }
+
+/* MÉTRICAS */
 [data-testid="stMetric"] {
-    background: #ffffff; border: 1px solid #e5e7eb;
-    border-radius: 12px; padding: 16px 18px !important;
-    border-top: 3px solid #ffe600;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    background: #ffffff !important;
+    border: none !important;
+    border-radius: 8px !important;
+    padding: 16px 18px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
 }
-[data-testid="stMetricLabel"] { color: #6b7280 !important; font-size: 10px !important; font-weight: 700 !important; text-transform: uppercase; letter-spacing: 0.8px; }
-[data-testid="stMetricValue"] { color: #111827 !important; font-size: 26px !important; font-weight: 800 !important; }
+[data-testid="stMetricLabel"] {
+    color: #999999 !important;
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+[data-testid="stMetricValue"] {
+    color: #333333 !important;
+    font-size: 26px !important;
+    font-weight: 800 !important;
+}
 [data-testid="stMetricDelta"] { font-size: 11px !important; }
 
-[data-testid="stProgress"] > div > div { background: #ffe600 !important; border-radius: 4px !important; }
-[data-testid="stProgress"] > div { background: #f3f4f6 !important; border-radius: 4px !important; height: 8px !important; }
-
-hr { border-color: #e5e7eb !important; margin: 1.5rem 0 !important; }
-[data-testid="stDataFrame"] { border: 1px solid #e5e7eb; border-radius: 10px; }
-
-.section-label {
-    font-size: 11px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 1px; color: #6b7280; margin-bottom: 12px;
-    border-left: 3px solid #ffe600; padding-left: 10px;
+/* PROGRESS BAR */
+[data-testid="stProgress"] > div > div {
+    background: #ffe600 !important;
+    border-radius: 4px !important;
 }
+[data-testid="stProgress"] > div {
+    background: #e0e0e0 !important;
+    border-radius: 4px !important;
+    height: 8px !important;
+}
+
+/* DIVISOR */
+hr { border-color: #e0e0e0 !important; margin: 1.5rem 0 !important; }
+
+/* TABELA */
+[data-testid="stDataFrame"] {
+    border: none !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+}
+
+/* SECTION LABEL */
+.section-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #999999;
+    margin-bottom: 12px;
+    border-left: 3px solid #ffe600;
+    padding-left: 10px;
+}
+
+/* PLACEHOLDER */
 .placeholder-box {
-    background: #ffffff; border: 2px dashed #e5e7eb; border-radius: 16px;
-    padding: 60px 40px; text-align: center; margin: 20px 0;
+    background: #ffffff;
+    border: 2px dashed #e0e0e0;
+    border-radius: 12px;
+    padding: 60px 40px;
+    text-align: center;
+    margin: 20px 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+/* MULTISELECT */
+[data-baseweb="select"] {
+    background: #ffffff !important;
+    border-radius: 8px !important;
+}
+
+/* DOWNLOAD BTN */
+[data-testid="stDownloadButton"] > button {
+    background: #ffe600 !important;
+    color: #333333 !important;
+    border: none !important;
+    font-weight: 700 !important;
+    border-radius: 8px !important;
+}
+[data-testid="stDownloadButton"] > button:hover {
+    background: #ffd000 !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -137,12 +220,23 @@ page_titles = {
     'found_represado': ('🔒 Evolução Found Represado',  'Em breve · aguardando dados'),
 }
 title, subtitle = page_titles.get(st.session_state.page, ('—','—'))
-c1, c2 = st.columns([7, 2])
-with c1:
-    st.markdown(f"<h2 style='color:#111827;margin:0;font-weight:800;font-size:22px'>{title}</h2>", unsafe_allow_html=True)
-    st.markdown(f"<p style='color:#6b7280;font-size:13px;margin:4px 0 0'>{subtitle}</p>", unsafe_allow_html=True)
-with c2:
-    st.markdown("<div style='background:#111827;color:#ffe600;font-weight:700;font-size:12px;padding:9px 16px;border-radius:8px;text-align:center;margin-top:4px'>🟢 Live · GitHub</div>", unsafe_allow_html=True)
+
+# TOPBAR estilo Meli
+st.markdown(f"""
+<div style='background:#ffe600;padding:12px 32px;margin:-1.5rem -2rem 1.5rem;
+    display:flex;justify-content:space-between;align-items:center;
+    box-shadow:0 2px 8px rgba(0,0,0,0.12)'>
+    <div style='display:flex;align-items:center;gap:16px'>
+        <img src='https://http2.mlstatic.com/frontend-assets/ui-navigation/5.21.3/mercadolibre/logo__large_plus.png' height='28'>
+        <span style='font-size:16px;font-weight:700;color:#333333'>Loss Prevention · BRSP06</span>
+    </div>
+    <div style='font-size:12px;font-weight:600;color:#333333'>
+        🟢 Live · {datetime.now().strftime('%d/%m/%Y %H:%M')}
+    </div>
+</div>
+<h2 style='color:#333333;margin:0 0 4px;font-weight:800;font-size:20px'>{title}</h2>
+<p style='color:#999999;font-size:13px;margin:0 0 16px'>{subtitle}</p>
+""", unsafe_allow_html=True)
 st.divider()
 
 # ══════════════════════════════════════════════════════════════════════════════

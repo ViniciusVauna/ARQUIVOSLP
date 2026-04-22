@@ -55,7 +55,8 @@ st.markdown("""
 [data-testid="stToolbar"] { display: none !important; }
 .block-container { padding: 1.5rem 2rem 2rem 2rem !important; max-width: 100% !important; }
 .stApp { background: #f0f0f0 !important; }
-body { font-family: 'DM Sans', sans-serif !important; color: #1a1a2e !important; }
+body, p, span, div, label { font-family: 'DM Sans', sans-serif !important; color: #1a1a2e !important; }
+[data-testid='stDataFrame'] * { color: #1a1a2e !important; }
 [data-testid="stMetric"] { background: #ffffff; border-radius: 10px; padding: 16px 18px !important; border-top: 3px solid #ffe600; box-shadow: 0 2px 6px rgba(0,0,0,0.07); }
 [data-testid="stMetricLabel"] { color: #888888 !important; font-size: 10px !important; font-weight: 700 !important; text-transform: uppercase; letter-spacing: 0.8px; }
 [data-testid="stMetricValue"] { color: #1a1a2e !important; font-size: 26px !important; font-weight: 800 !important; }
@@ -105,9 +106,9 @@ if 'page' not in st.session_state:
 
 # ── SIDEBAR ────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.image("https://http2.mlstatic.com/frontend-assets/ui-navigation/5.21.3/mercadolibre/logo__large_plus.png", width=130)
+    st.image("https://http2.mlstatic.com/frontend-assets/ui-navigation/5.21.3/mercadolibre/logo__large_plus.png", width=160)
     st.markdown("---")
-    st.markdown("<p style='color:#4b5563;font-size:10px;letter-spacing:2px;text-transform:uppercase;padding:0 4px;margin-bottom:6px'>LOSS PREVENTION</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#9ca3af;font-size:10px;letter-spacing:2px;text-transform:uppercase;padding:0 4px;margin-bottom:6px'>LOSS PREVENTION · BRSP06</p>", unsafe_allow_html=True)
 
     pages = [
         ('caca_lost',       '🎯', 'Evolução Caça Lost'),
@@ -179,81 +180,6 @@ if st.session_state.page == 'caca_lost':
     if not future_weeks: future_weeks = valid_weeks
     NEXT_4 = future_weeks[:4]
     CUR    = future_weeks[0] if future_weeks else ''
-
-    # ── SEMANA ATUAL ──────────────────────────────────────────────────────────
-    st.markdown(f'<div class="section-label">Semana atual — {CUR} · Due Date</div>', unsafe_allow_html=True)
-
-    df_cur = df[df['WEEK_DUE_DATE'] == CUR].copy()
-    df_cur['fin'] = df_cur.apply(is_finalizado, axis=1)
-    df_cur['rec'] = df_cur.apply(lambda r: r['PENDING_USD'] if (
-        r['STATUS_BUSCA_ORIGEN'] in FOUND_SET or r['STATUS_REVISAO_ORIGEN'] in FOUND_SET) else 0, axis=1)
-
-    total     = len(df_cur)
-    usd_total = df_cur['PENDING_USD'].sum()
-    usd_rec   = df_cur['rec'].sum()
-    usd_pend  = df_cur[~df_cur['fin']]['PENDING_USD'].sum()
-    n_fin     = int(df_cur['fin'].sum())
-    pct_fin   = round(n_fin/total*100,1) if total else 0
-    n_pb      = int((df_cur['STATUS_BUSCA_ORIGEN']=='').sum())
-    n_pr      = int((df_cur['STATUS_REVISAO_ORIGEN']=='').sum())
-    pct_b     = round((total-n_pb)/total*100,1) if total else 0
-    pct_r     = round((total-n_pr)/total*100,1) if total else 0
-
-    k1,k2,k3,k4,k5 = st.columns(5)
-    k1.metric("Total issues", f"{total:,}", "due esta semana")
-    k2.metric("USD total", f"${usd_total:,.0f}")
-    k3.metric("USD pendente", f"${usd_pend:,.0f}", f"{total-n_fin} em aberto", delta_color="inverse")
-    k4.metric("USD recuperado", f"${usd_rec:,.0f}", "Found Inv./LP")
-    k5.metric("% Conclusão", f"{pct_fin}%", f"{n_fin} de {total}")
-
-    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-
-    col_b, col_r = st.columns(2)
-    with col_b:
-        cb = pct_color(pct_b)
-        st.markdown(f"""
-        <div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,0.04)'>
-            <p style='font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin:0 0 8px'>Processo de Busca</p>
-            <div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'>
-                <span style='font-size:34px;font-weight:800;color:{cb}'>{pct_b}%</span>
-                <div style='text-align:right'>
-                    <div style='font-size:12px;color:#6b7280'>{total-n_pb:,} concluídas</div>
-                    <div style='font-size:12px;color:#dc2626;font-weight:700'>{n_pb:,} faltam</div>
-                </div>
-            </div>
-        </div>""", unsafe_allow_html=True)
-        st.progress(pct_b/100)
-        if n_pb > 0:
-            st.caption("Pendentes por processo")
-            df_pb = df_cur[df_cur['STATUS_BUSCA_ORIGEN']=='']['FBM_PROCCESS_NAME'].value_counts().head(5).reset_index()
-            df_pb.columns = ['Processo','Qtd']
-            fig = go.Figure(go.Bar(x=df_pb['Qtd'], y=df_pb['Processo'], orientation='h',
-                marker_color='#1d4ed8', text=df_pb['Qtd'], textposition='outside', textfont=dict(color='#111827')))
-            st.plotly_chart(chart_style(fig, 180), use_container_width=True)
-
-    with col_r:
-        cr = pct_color(pct_r)
-        st.markdown(f"""
-        <div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,0.04)'>
-            <p style='font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin:0 0 8px'>Processo de Revisão</p>
-            <div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'>
-                <span style='font-size:34px;font-weight:800;color:{cr}'>{pct_r}%</span>
-                <div style='text-align:right'>
-                    <div style='font-size:12px;color:#6b7280'>{total-n_pr:,} concluídas</div>
-                    <div style='font-size:12px;color:#dc2626;font-weight:700'>{n_pr:,} faltam</div>
-                </div>
-            </div>
-        </div>""", unsafe_allow_html=True)
-        st.progress(pct_r/100)
-        if n_pr > 0:
-            st.caption("Pendentes por processo")
-            df_pr = df_cur[df_cur['STATUS_REVISAO_ORIGEN']=='']['FBM_PROCCESS_NAME'].value_counts().head(5).reset_index()
-            df_pr.columns = ['Processo','Qtd']
-            fig = go.Figure(go.Bar(x=df_pr['Qtd'], y=df_pr['Processo'], orientation='h',
-                marker_color='#2563eb', text=df_pr['Qtd'], textposition='outside', textfont=dict(color='#111827')))
-            st.plotly_chart(chart_style(fig, 180), use_container_width=True)
-
-    st.divider()
 
     # ── 4 SEMANAS ─────────────────────────────────────────────────────────────
     st.markdown('<div class="section-label">Semana atual + próximas 3 · progresso de busca & revisão</div>', unsafe_allow_html=True)

@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
 
-st.set_page_config(page_title="Loss Prevention — BRSP06", layout="wide", page_icon="🔵")
+st.set_page_config(page_title="Loss Prevention — BRSP06", layout="wide", page_icon="🔵", initial_sidebar_state="expanded")
 
 CSV_URL = "https://raw.githubusercontent.com/ViniciusVauna/ARQUIVOSLP/main/data.csv"
 
@@ -127,6 +127,15 @@ with st.sidebar:
         st.rerun()
     st.caption(f"🟡 Auto-atualização 8h e 14h")
     st.caption(f"BRSP06 · {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+
+# ── SIDEBAR TOGGLE FIX ────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+[data-testid="collapsedControl"] { display: none !important; }
+section[data-testid="stSidebar"] { min-width: 240px !important; width: 240px !important; transform: none !important; }
+section[data-testid="stSidebar"][aria-expanded="false"] { min-width: 240px !important; margin-left: 0 !important; }
+</style>
+""", unsafe_allow_html=True)
 
 # ── HEADER ─────────────────────────────────────────────────────────────────────
 page_titles = {

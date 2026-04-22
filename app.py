@@ -50,131 +50,24 @@ def get_current_week():
 # ── CSS ────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Proxima+Nova:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
-
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
 [data-testid="stHeader"] { display: none !important; }
-.block-container { padding: 1.5rem 2rem !important; max-width: 100% !important; }
-html, body, .stApp {
-    background: #eeeeee !important;
-    font-family: 'Inter', 'Proxima Nova', sans-serif !important;
-    color: #333333 !important;
-}
-
-/* SIDEBAR */
-[data-testid="stSidebar"] {
-    background: #ffffff !important;
-    border-right: 1px solid #e0e0e0 !important;
-}
-[data-testid="stSidebar"] p,
-[data-testid="stSidebar"] span,
-[data-testid="stSidebar"] caption { color: #666666 !important; }
-[data-testid="stSidebar"] div.stButton > button {
-    background: transparent !important;
-    color: #333333 !important;
-    border: none !important;
-    border-radius: 8px !important;
-    font-size: 13px !important;
-    font-weight: 500 !important;
-    width: 100% !important;
-    text-align: left !important;
-    padding: 9px 14px !important;
-}
-[data-testid="stSidebar"] div.stButton > button:hover {
-    background: #f5f5f5 !important;
-    color: #333333 !important;
-}
-[data-testid="stSidebar"] div.stButton > button[kind="primary"] {
-    background: #ffe600 !important;
-    color: #333333 !important;
-    font-weight: 700 !important;
-}
-
-/* CONTEÚDO PRINCIPAL */
-.main > div { padding: 1.5rem 2rem !important; }
-
-/* MÉTRICAS */
-[data-testid="stMetric"] {
-    background: #ffffff !important;
-    border: none !important;
-    border-radius: 8px !important;
-    padding: 16px 18px !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
-}
-[data-testid="stMetricLabel"] {
-    color: #999999 !important;
-    font-size: 10px !important;
-    font-weight: 600 !important;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-}
-[data-testid="stMetricValue"] {
-    color: #333333 !important;
-    font-size: 26px !important;
-    font-weight: 800 !important;
-}
+[data-testid="stToolbar"] { display: none !important; }
+.block-container { padding: 1.5rem 2rem 2rem 2rem !important; max-width: 100% !important; }
+.stApp { background: #f0f0f0 !important; }
+body { font-family: 'DM Sans', sans-serif !important; color: #1a1a2e !important; }
+[data-testid="stMetric"] { background: #ffffff; border-radius: 10px; padding: 16px 18px !important; border-top: 3px solid #ffe600; box-shadow: 0 2px 6px rgba(0,0,0,0.07); }
+[data-testid="stMetricLabel"] { color: #888888 !important; font-size: 10px !important; font-weight: 700 !important; text-transform: uppercase; letter-spacing: 0.8px; }
+[data-testid="stMetricValue"] { color: #1a1a2e !important; font-size: 26px !important; font-weight: 800 !important; }
 [data-testid="stMetricDelta"] { font-size: 11px !important; }
-
-/* PROGRESS BAR */
-[data-testid="stProgress"] > div > div {
-    background: #ffe600 !important;
-    border-radius: 4px !important;
-}
-[data-testid="stProgress"] > div {
-    background: #e0e0e0 !important;
-    border-radius: 4px !important;
-    height: 8px !important;
-}
-
-/* DIVISOR */
+[data-testid="stProgress"] > div > div { background: #ffe600 !important; border-radius: 4px !important; }
+[data-testid="stProgress"] > div { background: #e0e0e0 !important; border-radius: 4px !important; height: 8px !important; }
 hr { border-color: #e0e0e0 !important; margin: 1.5rem 0 !important; }
-
-/* TABELA */
-[data-testid="stDataFrame"] {
-    border: none !important;
-    border-radius: 8px !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
-}
-
-/* SECTION LABEL */
-.section-label {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #999999;
-    margin-bottom: 12px;
-    border-left: 3px solid #ffe600;
-    padding-left: 10px;
-}
-
-/* PLACEHOLDER */
-.placeholder-box {
-    background: #ffffff;
-    border: 2px dashed #e0e0e0;
-    border-radius: 12px;
-    padding: 60px 40px;
-    text-align: center;
-    margin: 20px 0;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-}
-
-/* MULTISELECT */
-[data-baseweb="select"] {
-    background: #ffffff !important;
-    border-radius: 8px !important;
-}
-
-/* DOWNLOAD BTN */
-[data-testid="stDownloadButton"] > button {
-    background: #ffe600 !important;
-    color: #333333 !important;
-    border: none !important;
-    font-weight: 700 !important;
-    border-radius: 8px !important;
-}
-[data-testid="stDownloadButton"] > button:hover {
-    background: #ffd000 !important;
-}
+[data-testid="stDataFrame"] { border-radius: 10px !important; box-shadow: 0 2px 6px rgba(0,0,0,0.07) !important; }
+.section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #888888; margin-bottom: 12px; border-left: 3px solid #ffe600; padding-left: 10px; }
+.placeholder-box { background: #ffffff; border: 2px dashed #d0d0d0; border-radius: 12px; padding: 60px 40px; text-align: center; margin: 20px 0; }
+[data-testid="stDownloadButton"] > button { background: #1a73e8 !important; color: #ffffff !important; border: none !important; font-weight: 600 !important; border-radius: 8px !important; }
+[data-testid="stDownloadButton"] > button:hover { background: #1557b0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -216,21 +109,19 @@ page_titles = {
 }
 title, subtitle = page_titles.get(st.session_state.page, ('—','—'))
 
-# TOPBAR estilo Meli
+# HEADER
 st.markdown(f"""
-<div style='background:#ffe600;padding:12px 24px;margin:-1.5rem -2rem 1.5rem;
+<div style='background:#ffe600;padding:12px 20px;border-radius:10px;
     display:flex;justify-content:space-between;align-items:center;
-    box-shadow:0 2px 8px rgba(0,0,0,0.12)'>
-    <div style='display:flex;align-items:center;gap:16px'>
-        <img src='https://http2.mlstatic.com/frontend-assets/ui-navigation/5.21.3/mercadolibre/logo__large_plus.png' height='28'>
-        <span style='font-size:16px;font-weight:700;color:#333333'>Loss Prevention · BRSP06</span>
+    box-shadow:0 2px 6px rgba(0,0,0,0.1);margin-bottom:16px'>
+    <div>
+        <div style='font-size:18px;font-weight:800;color:#1a1a2e'>{title}</div>
+        <div style='font-size:12px;color:#555555;margin-top:2px'>{subtitle}</div>
     </div>
-    <div style='font-size:12px;font-weight:600;color:#333333'>
-        🟢 Live · {datetime.now().strftime('%d/%m/%Y %H:%M')}
+    <div style='font-size:12px;font-weight:600;color:#1a1a2e;background:rgba(0,0,0,0.08);padding:6px 12px;border-radius:6px'>
+        🟢 Live · GitHub · {datetime.now().strftime('%d/%m/%Y %H:%M')}
     </div>
 </div>
-<h2 style='color:#333333;margin:0 0 4px;font-weight:800;font-size:20px'>{title}</h2>
-<p style='color:#999999;font-size:13px;margin:0 0 16px'>{subtitle}</p>
 """, unsafe_allow_html=True)
 st.divider()
 

@@ -53,16 +53,11 @@ st.markdown("""
 @import url('https://fonts.googleapis.com/css2?family=Proxima+Nova:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
 
 [data-testid="stHeader"] { display: none !important; }
-.block-container { padding: 0 !important; max-width: 100% !important; }
+.block-container { padding: 1.5rem 2rem !important; max-width: 100% !important; }
 html, body, .stApp {
     background: #eeeeee !important;
     font-family: 'Inter', 'Proxima Nova', sans-serif !important;
     color: #333333 !important;
-}
-
-/* TOPBAR AMARELA */
-[data-testid="stAppViewContainer"] > div:first-child {
-    background: #eeeeee !important;
 }
 
 /* SIDEBAR */
@@ -223,7 +218,7 @@ title, subtitle = page_titles.get(st.session_state.page, ('—','—'))
 
 # TOPBAR estilo Meli
 st.markdown(f"""
-<div style='background:#ffe600;padding:12px 32px;margin:-1.5rem -2rem 1.5rem;
+<div style='background:#ffe600;padding:12px 24px;margin:-1.5rem -2rem 1.5rem;
     display:flex;justify-content:space-between;align-items:center;
     box-shadow:0 2px 8px rgba(0,0,0,0.12)'>
     <div style='display:flex;align-items:center;gap:16px'>

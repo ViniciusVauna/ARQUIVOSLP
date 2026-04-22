@@ -154,10 +154,25 @@ with st.spinner("Carregando dados..."):
         st.error(f"Erro ao carregar dados: {e}")
         st.stop()
 
-valid_weeks = sorted([w for w in df['WEEK_DUE_DATE'].unique()
-                      if w and w != 'Sem previsão' and '-' in w])
-NEXT_4 = valid_weeks[:4]
-CUR    = valid_weeks[0] if valid_weeks else ''
+valid_weeks = sorted([w for w in df["WEEK_DUE_DATE"].unique()
+                      if w and w != "Sem previsão" and "-" in w])
+
+# Semana atual baseada no calendário real de hoje
+def get_current_week_label():
+    today = datetime.now()
+    week_num = today.isocalendar()[1]
+    year = today.year
+    return f"W{str(week_num).zfill(2)}-{year}"
+
+today_week = get_current_week_label()
+
+# Pega semanas a partir da semana atual
+future_weeks = [w for w in valid_weeks if w >= today_week]
+if not future_weeks:
+    future_weeks = valid_weeks
+
+NEXT_4 = future_weeks[:4]
+CUR    = future_weeks[0] if future_weeks else (valid_weeks[0] if valid_weeks else "")
 
 # ── HEADER ─────────────────────────────────────────────────────────────────────
 c1, c2 = st.columns([7, 2])

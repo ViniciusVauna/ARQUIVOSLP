@@ -23,6 +23,19 @@ FOUND_SET = {'Found Inv.', 'Found LP', 'Found Inv', 'Found LP.'}
 CSV_PI2_URL       = "https://raw.githubusercontent.com/ViniciusVauna/ARQUIVOSLP/main/data_pi2.csv"
 CSV_REPRESADO_URL      = "https://raw.githubusercontent.com/ViniciusVauna/ARQUIVOSLP/main/data_found_represado.csv"
 CSV_REPRESADO_HIST_URL = "https://raw.githubusercontent.com/ViniciusVauna/ARQUIVOSLP/main/data_found_represado_hist.csv"
+CSV_PI2_HIST_URL = "https://raw.githubusercontent.com/ViniciusVauna/ARQUIVOSLP/main/data_pi2_historico.csv"
+
+@st.cache_data(ttl=600, show_spinner=False)
+def load_pi2_hist():
+    df = pd.read_csv(CSV_PI2_HIST_URL)
+    for col in ['Status','Range','Issue','Usuario','Week','Week_pagamento']:
+        if col in df.columns:
+            df[col] = df[col].fillna('').astype(str).str.strip()
+    for col in ['Valor Recuperado','Valor Unitario','Total Issue']:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col].astype(str).str.replace(',','.'), errors='coerce').fillna(0)
+    df['recuperado'] = df['Status'].str.lower().isin(['conciliado','issue a conciliar'])
+    return df
 
 @st.cache_data(ttl=600, show_spinner=False)
 def load_represado():
@@ -360,7 +373,13 @@ if st.session_state.page == 'caca_lost':
 elif st.session_state.page == 'pi2':
     with st.spinner("Carregando PI 2.0..."):
         try:
-            df2 = load_pi2()
+            df2  = load_pi2()
+            try:
+                df2h = load_pi2_hist()
+                pi2_hist_ok = True
+            except:
+                pi2_hist_ok = False
+                df2h = None
         except Exception as e:
             st.error(f"Erro ao carregar PI 2.0: {e}")
             st.stop()
@@ -442,6 +461,43 @@ elif st.session_state.page == 'pi2':
             st.plotly_chart(fig2, use_container_width=True)
 
     st.divider()
+
+    # ── RECUPERAÇÃO PI 2.0 HISTÓRICO ─────────────────────────────────────────
+    if pi2_hist_ok and df2h is not None and len(df2h) > 0:
+        st.markdown('<div class="section-label">Recuperação · PI 2.0 Finalizado</div>', unsafe_allow_html=True)
+        tot_rec_pi2  = len(df2h)
+        brl_rec_pi2  = df2h['Valor Recuperado'].sum() if 'Valor Recuperado' in df2h.columns else 0
+        issues_rec   = df2h['Issue'].nunique() if 'Issue' in df2h.columns else 0
+
+        # Total pendentes do período selecionado para % recuperação
+        tot_pend_pi2 = total_end
+        pct_rec_pi2  = round(tot_rec_pi2/(tot_rec_pi2+tot_pend_pi2)*100,1) if (tot_rec_pi2+tot_pend_pi2) else 0
+
+        r1,r2,r3,r4 = st.columns(4)
+        r1.metric("Endereços recuperados", f"{tot_rec_pi2:,}")
+        r2.metric("Issues únicos recuperados", f"{issues_rec:,}")
+        r3.metric("R$ recuperado", f"R${brl_rec_pi2:,.0f}")
+        r4.metric("% Recuperação (end.)", f"{pct_rec_pi2}%")
+
+        cr = pct_color(pct_rec_pi2)
+        st.markdown(f"<div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px 18px;margin-top:8px'><div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'><span style='font-size:32px;font-weight:800;color:{cr}'>{pct_rec_pi2}%</span><div style='text-align:right;font-size:11px;color:#555'>{tot_rec_pi2:,} recuperados · {tot_pend_pi2:,} pendentes</div></div><div style='height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden'><div style='height:100%;width:{pct_rec_pi2}%;background:{cr};border-radius:4px'></div></div></div>", unsafe_allow_html=True)
+
+        # Recuperados por semana de pagamento
+        if 'Week_pagamento' in df2h.columns:
+            st.caption("Recuperados por semana de pagamento")
+            df_rec_sem = df2h.groupby('Week_pagamento').agg(
+                enderecos=('Issue','count'),
+                valor=('Valor Recuperado','sum')
+            ).reset_index().sort_values('Week_pagamento')
+            fig_rec = go.Figure()
+            fig_rec.add_trace(go.Bar(name='Endereços', x=df_rec_sem['Week_pagamento'], y=df_rec_sem['enderecos'],
+                marker_color='#16a34a', text=df_rec_sem['enderecos'], textposition='outside', textfont=dict(color='#1a1a2e')))
+            fig_rec.update_layout(height=200, margin=dict(t=10,b=10,l=10,r=10),
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#1a1a2e', size=11), legend=dict(orientation='h', y=1.15))
+            fig_rec.update_xaxes(showgrid=False); fig_rec.update_yaxes(showgrid=False, showticklabels=False)
+            st.plotly_chart(fig_rec, use_container_width=True)
+        st.divider()
 
     # ── CARDS DINÂMICOS POR SEMANA ────────────────────────────────────────────
     st.markdown('<div class="section-label">Cards por semana · dinâmicos com o período</div>', unsafe_allow_html=True)

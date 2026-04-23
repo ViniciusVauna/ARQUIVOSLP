@@ -37,14 +37,29 @@ def load_pi2_hist():
     df['recuperado'] = df['Status'].str.lower().isin(['conciliado','issue a conciliar'])
     return df
 
+import re as _re
+
+def _parse_semana(val):
+    try:
+        m = _re.search(r'(\w{3} \w{3} \d{2} \d{4})', str(val))
+        if m:
+            dt = pd.to_datetime(m.group(1), format='%a %b %d %Y')
+            return f"W{dt.isocalendar()[1]:02d}-{dt.year}"
+    except: pass
+    return ''
+
 @st.cache_data(ttl=600, show_spinner=False)
 def load_represado():
     df = pd.read_csv(CSV_REPRESADO_URL)
     df['INSURANCE_COST'] = pd.to_numeric(df['INSURANCE_COST'].astype(str).str.replace(',','.'), errors='coerce').fillna(0)
     df['AGING'] = pd.to_numeric(df['AGING'], errors='coerce').fillna(0).astype(int)
-    for col in ['SEMANA_REPRESADO','PROCCESS','RANGE_STATUS','FBM_ISSUE_ID','ADDRESS_ID_FROM']:
+    for col in ['SEMANA_REPRESADO','PROCCESS','RANGE_STATUS','FBM_ISSUE_ID','ADDRESS_ID_FROM','MELI']:
         if col in df.columns:
             df[col] = df[col].fillna('').astype(str).str.strip()
+    # Chave para cruzar com histórico: Endereço|FBM_ISSUE_ID|MELI
+    df['CHAVE_CALC'] = df['ADDRESS_ID_FROM'] + '|' + df['FBM_ISSUE_ID'] + '|' + df['MELI']
+    # Semana de pagamento a partir de DATA_PAGAMENTO
+    df['semana_pag'] = df['DATA_PAGAMENTO'].apply(_parse_semana)
     return df
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -52,10 +67,11 @@ def load_represado_hist():
     df = pd.read_csv(CSV_REPRESADO_HIST_URL)
     df['VALOR_CONCILIADO'] = pd.to_numeric(df['VALOR_CONCILIADO'], errors='coerce').fillna(0)
     df['INSURANCE_COST']   = pd.to_numeric(df['INSURANCE_COST'], errors='coerce').fillna(0)
-    for col in ['STATUS','PROCCESS','FBM_ISSUE_ID','USUARIO']:
+    for col in ['STATUS','PROCCESS','FBM_ISSUE_ID','USUARIO','CHAVE_UNICA']:
         if col in df.columns:
             df[col] = df[col].fillna('').astype(str).str.strip()
     df['conciliado'] = df['STATUS'] == 'Conciliado'
+    df['semana_pag'] = df['DATA_PAGAMENTO'].apply(_parse_semana)
     return df
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -133,10 +149,9 @@ with st.sidebar:
     st.markdown("<p style='color:#4b5563;font-size:10px;letter-spacing:2px;text-transform:uppercase;padding:0 4px;margin-bottom:6px'>LOSS PREVENTION</p>", unsafe_allow_html=True)
 
     pages = [
-        ('caca_lost',       '🎯', 'Evolução Caça Lost'),
-        ('pi2',             '📋', 'Evolução PI 2.0'),
-        ('found_vendavel',  '✅', 'Evolução Found Vendável'),
-        ('found_represado', '🔒', 'Evolução Found Represado'),
+        ('caca_lost',       '🎯', 'Caça Lost'),
+        ('pi2',             '📋', 'PI 2.0'),
+        ('found_represado', '🔒', 'Found Represado'),
     ]
     for key, icon, label in pages:
         t = "primary" if st.session_state.page == key else "secondary"
@@ -373,7 +388,7 @@ if st.session_state.page == 'caca_lost':
 elif st.session_state.page == 'pi2':
     with st.spinner("Carregando PI 2.0..."):
         try:
-            df2  = load_pi2()
+            df2 = load_pi2()
             try:
                 df2h = load_pi2_hist()
                 pi2_hist_ok = True
@@ -384,176 +399,117 @@ elif st.session_state.page == 'pi2':
             st.error(f"Erro ao carregar PI 2.0: {e}")
             st.stop()
 
-    semanas_disp = sorted([s for s in df2['semana_norm'].unique() if s])
+    # Semanas disponíveis (Semana de Pagamento da base ativa)
+    semanas_pi2 = sorted([s for s in df2['semana_norm'].unique() if s])
 
     # ── FILTRO DE PERÍODO ─────────────────────────────────────────────────────
-    st.markdown('<div class="section-label">Período de análise</div>', unsafe_allow_html=True)
-    sel_semanas = st.multiselect(
-        "Selecione as semanas de pagamento",
-        options=semanas_disp,
-        default=semanas_disp,
-        key='pi2_period'
-    )
+    st.markdown('<div class="section-label">Período de análise · semana de pagamento</div>', unsafe_allow_html=True)
+    sel_semanas = st.multiselect("Selecione as semanas", options=semanas_pi2, default=semanas_pi2, key='pi2_period')
     if not sel_semanas:
         st.warning("Selecione ao menos uma semana.")
         st.stop()
 
     df2f = df2[df2['semana_norm'].isin(sel_semanas)]
-    semanas = sorted(sel_semanas)
+
+    # Histórico filtrado pela semana de pagamento
+    if pi2_hist_ok and df2h is not None:
+        semana_col_hist = 'Week_pagamento' if 'Week_pagamento' in df2h.columns else ('Week' if 'Week' in df2h.columns else None)
+        if semana_col_hist:
+            df2h_sel = df2h[df2h[semana_col_hist].isin(sel_semanas)]
+        else:
+            df2h_sel = df2h
+        rec_issues    = df2h_sel['Issue'].nunique() if 'Issue' in df2h_sel.columns else 0
+        brl_rec_pi2   = df2h_sel['Valor Recuperado'].sum() if 'Valor Recuperado' in df2h_sel.columns else 0
+    else:
+        df2h_sel = None; rec_issues = 0; brl_rec_pi2 = 0
 
     st.divider()
 
-    # ── KPIs DO PERÍODO SELECIONADO ───────────────────────────────────────────
+    # ── KPIs GERAIS ───────────────────────────────────────────────────────────
     st.markdown('<div class="section-label">KPIs · período selecionado</div>', unsafe_allow_html=True)
 
-    total_end    = len(df2f)
-    total_issues = df2f['ISSUE'].nunique()
-    pend_end     = int(df2f['pendente'].sum())
-    trat_end     = int(df2f['tratado'].sum())
-    pct_end      = round(trat_end/total_end*100,1) if total_end else 0
-    brl_total    = df2f['INSURANCE_COST'].sum()
-    brl_pend     = df2f[df2f['pendente']]['INSURANCE_COST'].sum()
-    issue_status = df2f.groupby('ISSUE')['pendente'].sum()
-    issues_res   = int((issue_status == 0).sum())
-    issues_pend  = int((issue_status > 0).sum())
-    pct_issues   = round(issues_res/total_issues*100,1) if total_issues else 0
+    total_end     = len(df2f)
+    total_issues  = df2f['ISSUE'].nunique()
+    pend_end      = int(df2f['pendente'].sum())
+    trat_end      = int(df2f['tratado'].sum())
+    pct_end       = round(trat_end/total_end*100,1) if total_end else 0
+    brl_total     = df2f['INSURANCE_COST'].sum()
+    brl_pend      = df2f[df2f['pendente']]['INSURANCE_COST'].sum()
+    issue_status  = df2f.groupby('ISSUE')['pendente'].sum()
+    issues_res    = int((issue_status == 0).sum())
+    issues_pend   = int((issue_status > 0).sum())
+    pct_issues    = round(issues_res/total_issues*100,1) if total_issues else 0
 
     k1,k2,k3,k4,k5,k6 = st.columns(6)
     k1.metric("Total endereços", f"{total_end:,}")
     k2.metric("Issues únicos", f"{total_issues:,}")
-    k3.metric("% End. tratados", f"{pct_end}%", f"{trat_end:,} ok · {pend_end:,} faltam")
-    k4.metric("% Issues resolvidos", f"{pct_issues}%", f"{issues_res:,} ok · {issues_pend:,} faltam")
-    k5.metric("R$ total", f"R${brl_total:,.0f}")
-    k6.metric("R$ pendente", f"R${brl_pend:,.0f}", delta_color="inverse")
+    k3.metric("Tratados", f"{trat_end:,}", f"{pct_end}%")
+    k4.metric("Pendentes", f"{pend_end:,}", delta_color="inverse")
+    k5.metric("Issues recuperados", f"{rec_issues:,}")
+    k6.metric("R$ recuperado", f"R${brl_rec_pi2:,.0f}")
 
     st.divider()
 
-    # ── PROGRESSO GERAL ───────────────────────────────────────────────────────
-    st.markdown('<div class="section-label">Progresso de varredura · período selecionado</div>', unsafe_allow_html=True)
-
+    # ── BARRAS DE PROGRESSO ───────────────────────────────────────────────────
+    st.markdown('<div class="section-label">Progresso de varredura e recuperação</div>', unsafe_allow_html=True)
     col_b2, col_r2 = st.columns(2)
+
     with col_b2:
         cb2 = pct_color(pct_end)
-        st.markdown(f"<div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,0.04)'><p style='font-size:11px;font-weight:700;text-transform:uppercase;color:#888;margin:0 0 8px'>Endereços Tratados</p><div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'><span style='font-size:40px;font-weight:800;color:{cb2}'>{pct_end}%</span><div style='text-align:right'><div style='font-size:12px;color:#555'>{trat_end:,} tratados</div><div style='font-size:13px;color:#dc2626;font-weight:700'>{pend_end:,} faltam</div></div></div><div style='height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden'><div style='height:100%;width:{pct_end}%;background:{cb2};border-radius:4px'></div></div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px'><p style='font-size:11px;font-weight:700;text-transform:uppercase;color:#888;margin:0 0 8px'>Endereços Tratados</p><div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'><span style='font-size:40px;font-weight:800;color:{cb2}'>{pct_end}%</span><div style='text-align:right'><div style='font-size:12px;color:#555'>{trat_end:,} tratados</div><div style='font-size:13px;color:#dc2626;font-weight:700'>{pend_end:,} faltam</div></div></div><div style='height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden'><div style='height:100%;width:{pct_end}%;background:{cb2};border-radius:4px'></div></div></div>", unsafe_allow_html=True)
         st.caption("Pendentes por processo")
         df_pb2 = df2f[df2f['pendente']].groupby('PROCESSO_LOST').size().reset_index(name='Qtd').sort_values('Qtd')
         if not df_pb2.empty:
             fig = go.Figure(go.Bar(x=df_pb2['Qtd'], y=df_pb2['PROCESSO_LOST'], orientation='h',
                 marker_color='#1a73e8', text=df_pb2['Qtd'], textposition='outside', textfont=dict(color='#1a1a2e')))
-            fig.update_layout(height=180, margin=dict(t=5,b=5,l=5,r=40),
-                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#1a1a2e', size=11))
-            fig.update_xaxes(showgrid=False, showticklabels=False)
-            fig.update_yaxes(showgrid=False, color='#1a1a2e')
+            fig.update_layout(height=180, margin=dict(t=5,b=5,l=5,r=40), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#1a1a2e',size=11))
+            fig.update_xaxes(showgrid=False, showticklabels=False); fig.update_yaxes(showgrid=False, color='#1a1a2e')
             st.plotly_chart(fig, use_container_width=True)
 
     with col_r2:
         ci2 = pct_color(pct_issues)
-        st.markdown(f"<div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,0.04)'><p style='font-size:11px;font-weight:700;text-transform:uppercase;color:#888;margin:0 0 8px'>Issues Únicos Resolvidos</p><div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'><span style='font-size:40px;font-weight:800;color:{ci2}'>{pct_issues}%</span><div style='text-align:right'><div style='font-size:12px;color:#555'>{issues_res:,} resolvidos</div><div style='font-size:13px;color:#dc2626;font-weight:700'>{issues_pend:,} faltam</div></div></div><div style='height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden'><div style='height:100%;width:{pct_issues}%;background:{ci2};border-radius:4px'></div></div></div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px'><p style='font-size:11px;font-weight:700;text-transform:uppercase;color:#888;margin:0 0 8px'>Issues Únicos Resolvidos</p><div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'><span style='font-size:40px;font-weight:800;color:{ci2}'>{pct_issues}%</span><div style='text-align:right'><div style='font-size:12px;color:#555'>{issues_res:,} resolvidos</div><div style='font-size:13px;color:#dc2626;font-weight:700'>{issues_pend:,} faltam</div></div></div><div style='height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden'><div style='height:100%;width:{pct_issues}%;background:{ci2};border-radius:4px'></div></div></div>", unsafe_allow_html=True)
         st.caption("Pendentes por Range")
         df_rng = df2f[df2f['pendente']].groupby('Range').size().reset_index(name='Qtd').sort_values('Qtd')
         if not df_rng.empty:
             fig2 = go.Figure(go.Bar(x=df_rng['Qtd'], y=df_rng['Range'], orientation='h',
                 marker_color='#2563eb', text=df_rng['Qtd'], textposition='outside', textfont=dict(color='#1a1a2e')))
-            fig2.update_layout(height=180, margin=dict(t=5,b=5,l=5,r=40),
-                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#1a1a2e', size=11))
-            fig2.update_xaxes(showgrid=False, showticklabels=False)
-            fig2.update_yaxes(showgrid=False, color='#1a1a2e')
+            fig2.update_layout(height=180, margin=dict(t=5,b=5,l=5,r=40), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#1a1a2e',size=11))
+            fig2.update_xaxes(showgrid=False, showticklabels=False); fig2.update_yaxes(showgrid=False, color='#1a1a2e')
             st.plotly_chart(fig2, use_container_width=True)
 
     st.divider()
 
-    # ── RECUPERAÇÃO PI 2.0 HISTÓRICO ─────────────────────────────────────────
-    if pi2_hist_ok and df2h is not None and len(df2h) > 0:
-        st.markdown('<div class="section-label">Recuperação · PI 2.0 Finalizado</div>', unsafe_allow_html=True)
-        tot_rec_pi2  = len(df2h)
-        brl_rec_pi2  = df2h['Valor Recuperado'].sum() if 'Valor Recuperado' in df2h.columns else 0
-        issues_rec   = df2h['Issue'].nunique() if 'Issue' in df2h.columns else 0
-
-        # Total pendentes do período selecionado para % recuperação
-        tot_pend_pi2 = total_end
-        pct_rec_pi2  = round(tot_rec_pi2/(tot_rec_pi2+tot_pend_pi2)*100,1) if (tot_rec_pi2+tot_pend_pi2) else 0
-
-        r1,r2,r3,r4 = st.columns(4)
-        r1.metric("Endereços recuperados", f"{tot_rec_pi2:,}")
-        r2.metric("Issues únicos recuperados", f"{issues_rec:,}")
-        r3.metric("R$ recuperado", f"R${brl_rec_pi2:,.0f}")
-        r4.metric("% Recuperação (end.)", f"{pct_rec_pi2}%")
-
-        cr = pct_color(pct_rec_pi2)
-        st.markdown(f"<div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px 18px;margin-top:8px'><div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'><span style='font-size:32px;font-weight:800;color:{cr}'>{pct_rec_pi2}%</span><div style='text-align:right;font-size:11px;color:#555'>{tot_rec_pi2:,} recuperados · {tot_pend_pi2:,} pendentes</div></div><div style='height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden'><div style='height:100%;width:{pct_rec_pi2}%;background:{cr};border-radius:4px'></div></div></div>", unsafe_allow_html=True)
-
-        # Recuperados por semana de pagamento
-        if 'Week_pagamento' in df2h.columns:
-            st.caption("Recuperados por semana de pagamento")
-            df_rec_sem = df2h.groupby('Week_pagamento').agg(
-                enderecos=('Issue','count'),
-                valor=('Valor Recuperado','sum')
-            ).reset_index().sort_values('Week_pagamento')
-            fig_rec = go.Figure()
-            fig_rec.add_trace(go.Bar(name='Endereços', x=df_rec_sem['Week_pagamento'], y=df_rec_sem['enderecos'],
-                marker_color='#16a34a', text=df_rec_sem['enderecos'], textposition='outside', textfont=dict(color='#1a1a2e')))
-            fig_rec.update_layout(height=200, margin=dict(t=10,b=10,l=10,r=10),
-                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                font=dict(color='#1a1a2e', size=11), legend=dict(orientation='h', y=1.15))
-            fig_rec.update_xaxes(showgrid=False); fig_rec.update_yaxes(showgrid=False, showticklabels=False)
-            st.plotly_chart(fig_rec, use_container_width=True)
-        st.divider()
-
-    # ── CARDS DINÂMICOS POR SEMANA ────────────────────────────────────────────
-    st.markdown('<div class="section-label">Cards por semana · dinâmicos com o período</div>', unsafe_allow_html=True)
-
-    n_cols = min(len(semanas), 4)
-    cols4 = st.columns(n_cols)
-    for i, sem in enumerate(semanas):
+    # ── CARDS POR SEMANA ──────────────────────────────────────────────────────
+    st.markdown('<div class="section-label">Evolução por semana de pagamento</div>', unsafe_allow_html=True)
+    n_cols4 = min(len(sel_semanas), 4)
+    cols4   = st.columns(n_cols4)
+    for i, sem in enumerate(sorted(sel_semanas)):
         df_s   = df2f[df2f['semana_norm'] == sem]
-        t_end  = len(df_s)
-        p_end  = int(df_s['pendente'].sum())
-        tr_end = int(df_s['tratado'].sum())
-        pp     = round(tr_end/t_end*100,1) if t_end else 0
-        cp     = pct_color(pp)
+        t_end  = len(df_s); p_end = int(df_s['pendente'].sum()); tr_end = int(df_s['tratado'].sum())
+        pp     = round(tr_end/t_end*100,1) if t_end else 0; cp = pct_color(pp)
         brl_s  = df_s['INSURANCE_COST'].sum()
-        avg_ag = df_s['Aging'].mean() if t_end else 0
         iss_s  = df_s['ISSUE'].nunique()
         is_st  = df_s.groupby('ISSUE')['pendente'].sum()
-        iss_r  = int((is_st == 0).sum())
-        iss_p  = int((is_st > 0).sum())
-        pp_i   = round(iss_r/iss_s*100,1) if iss_s else 0
-        ci3    = pct_color(pp_i)
-
-        with cols4[i % n_cols]:
-            st.markdown(f"""
-            <div style='border:1px solid #e5e7eb;background:#ffffff;border-radius:14px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:8px'>
-                <div style='font-family:monospace;font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:6px'>{sem}</div>
-                <div style='font-size:11px;color:#888;margin-bottom:12px;font-family:monospace'>R${brl_s:,.0f} · {t_end:,} end. · {avg_ag:.0f}d aging</div>
-                <div style='height:1px;background:#f3f4f6;margin-bottom:12px'></div>
-                <div style='font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:5px'>Endereços</div>
-                <div style='display:flex;justify-content:space-between;margin-bottom:4px'>
-                    <span style='font-size:20px;font-weight:800;color:{cp}'>{pp}%</span>
-                    <span style='font-size:11px;color:#dc2626;font-weight:700'>{p_end:,} faltam</span>
-                </div>
-                <div style='height:6px;background:#f3f4f6;border-radius:3px;overflow:hidden;margin-bottom:12px'>
-                    <div style='height:100%;width:{pp}%;background:{cp};border-radius:3px'></div>
-                </div>
-                <div style='font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:5px'>Issues únicos</div>
-                <div style='display:flex;justify-content:space-between;margin-bottom:4px'>
-                    <span style='font-size:20px;font-weight:800;color:{ci3}'>{pp_i}%</span>
-                    <span style='font-size:11px;color:#dc2626;font-weight:700'>{iss_p:,} faltam</span>
-                </div>
-                <div style='height:6px;background:#f3f4f6;border-radius:3px;overflow:hidden'>
-                    <div style='height:100%;width:{pp_i}%;background:{ci3};border-radius:3px'></div>
-                </div>
-            </div>""", unsafe_allow_html=True)
+        iss_r  = int((is_st == 0).sum()); iss_p = int((is_st > 0).sum())
+        pp_i   = round(iss_r/iss_s*100,1) if iss_s else 0; ci3 = pct_color(pp_i)
+        # Recuperados do histórico nessa semana
+        if pi2_hist_ok and df2h is not None and semana_col_hist:
+            rec_s   = int((df2h[semana_col_hist] == sem).sum())
+            brl_r_s = df2h[df2h[semana_col_hist] == sem]['Valor Recuperado'].sum() if 'Valor Recuperado' in df2h.columns else 0
+        else:
+            rec_s = 0; brl_r_s = 0
+        with cols4[i % n_cols4]:
+            st.markdown(f"<div style='border:1px solid #e5e7eb;background:#fff;border-radius:14px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:8px'><div style='font-family:monospace;font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:6px'>{sem}</div><div style='font-size:11px;color:#888;margin-bottom:10px'>R${brl_s:,.0f} · {t_end:,} end.</div><div style='height:1px;background:#f3f4f6;margin-bottom:10px'></div><div style='font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:4px'>A bater · Tratei · Faltam</div><div style='font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:4px'>{t_end:,} · <span style='color:#1a73e8'>{tr_end:,}</span> · <span style='color:#dc2626'>{p_end:,}</span></div><div style='height:6px;background:#f3f4f6;border-radius:3px;overflow:hidden;margin-bottom:10px'><div style='height:100%;width:{pp}%;background:{cp};border-radius:3px'></div></div><div style='font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:4px'>Issues únicos resolvidos</div><div style='display:flex;justify-content:space-between;margin-bottom:4px'><span style='font-size:16px;font-weight:800;color:{ci3}'>{pp_i}%</span><span style='font-size:11px;color:#dc2626;font-weight:700'>{iss_p:,} faltam</span></div><div style='height:6px;background:#f3f4f6;border-radius:3px;overflow:hidden;margin-bottom:10px'><div style='height:100%;width:{pp_i}%;background:{ci3};border-radius:3px'></div></div><div style='font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:4px'>Recuperados</div><div style='font-size:16px;font-weight:800;color:#16a34a'>{rec_s:,} <span style='font-size:11px;color:#555'>· R${brl_r_s:,.0f}</span></div></div>", unsafe_allow_html=True)
 
     st.divider()
 
     # ── DETALHAMENTO ──────────────────────────────────────────────────────────
     st.markdown('<div class="section-label">Detalhamento · filtros & exportação</div>', unsafe_allow_html=True)
-
     fa, fb = st.columns(2)
-    with fa: sel_proc2 = st.multiselect("Processo", sorted(df2f['PROCESSO_LOST'].unique()))
+    with fa: sel_proc2  = st.multiselect("Processo", sorted(df2f['PROCESSO_LOST'].unique()))
     with fb:
-        sel_sts2 = st.multiselect("Status", ["Pendente", "Tratado"])
-
+        sel_sts2 = st.multiselect("Status", ["Pendente","Tratado"])
     df2d = df2f.copy()
     if sel_proc2: df2d = df2d[df2d['PROCESSO_LOST'].isin(sel_proc2)]
     if sel_sts2:
@@ -561,30 +517,14 @@ elif st.session_state.page == 'pi2':
             df2d = df2d[df2d['pendente']]
         elif "Tratado" in sel_sts2 and "Pendente" not in sel_sts2:
             df2d = df2d[df2d['tratado']]
-
-    cols2_show = [c for c in ['ISSUE','ITEM_TITLE_LOST','ENDERECO_LOST','ADDRESS_ID_TO',
-                  'PROCESSO_LOST','Range','Status_busca','Status_Conciliacao',
-                  'INSURANCE_COST','Aging','Semana de Pagamento'] if c in df2d.columns]
-
+    cols2_show = [c for c in ['ISSUE','ITEM_TITLE_LOST','ENDERECO_LOST','ADDRESS_ID_TO','PROCESSO_LOST','Range','Status_busca','Status_Conciliacao','INSURANCE_COST','Aging','Semana de Pagamento'] if c in df2d.columns]
     ci2b, cb2b = st.columns([4,1])
     ci2b.caption(f"{len(df2d):,} endereços · {df2d['ISSUE'].nunique():,} issues únicos")
     with cb2b:
-        st.download_button("⬇️ Exportar CSV",
-            df2d[cols2_show].to_csv(index=False).encode('utf-8'),
-            "pi2_brsp06.csv", "text/csv", use_container_width=True)
+        st.download_button("⬇️ Exportar CSV", df2d[cols2_show].to_csv(index=False).encode('utf-8'), "pi2_brsp06.csv", "text/csv", use_container_width=True)
     st.dataframe(df2d[cols2_show].reset_index(drop=True), use_container_width=True, hide_index=True,
-        column_config={
-            'INSURANCE_COST': st.column_config.NumberColumn("R$", format="R$%.2f"),
-            'Aging': st.column_config.NumberColumn("Aging (d)"),
-        })
+        column_config={'INSURANCE_COST': st.column_config.NumberColumn("R$", format="R$%.2f"), 'Aging': st.column_config.NumberColumn("Aging (d)")})
 
-elif st.session_state.page == 'found_vendavel':
-    st.markdown("""
-    <div class="placeholder-box">
-        <div style='font-size:48px;margin-bottom:16px'>✅</div>
-        <div style='font-size:18px;font-weight:700;color:#111827;margin-bottom:8px'>Evolução Found Vendável</div>
-        <div style='font-size:13px;color:#6b7280'>Aguardando dados · em breve</div>
-    </div>""", unsafe_allow_html=True)
 
 elif st.session_state.page == 'found_represado':
     with st.spinner("Carregando Found Represado..."):
@@ -595,97 +535,126 @@ elif st.session_state.page == 'found_represado':
             st.error(f"Erro ao carregar Found Represado: {e}")
             st.stop()
 
-    semanas_rep = sorted(dfr['SEMANA_REPRESADO'].unique())
-    conc_df = dfrh[dfrh['conciliado']]
+    # Chaves do histórico para cruzamento
+    chaves_hist     = set(dfrh['CHAVE_UNICA'].astype(str).str.strip())
+    chaves_conc     = set(dfrh[dfrh['conciliado']]['CHAVE_UNICA'].astype(str).str.strip())
+    dfr['ja_bati']  = dfr['CHAVE_CALC'].isin(chaves_hist)
+    dfr['recuperado']= dfr['CHAVE_CALC'].isin(chaves_conc)
+    dfr['pendente'] = ~dfr['ja_bati']
 
-    st.markdown('<div class="section-label">Período de análise</div>', unsafe_allow_html=True)
-    sel_semanas_r = st.multiselect("Semanas de represamento", options=semanas_rep, default=semanas_rep, key='rep_period')
+    # Semanas disponíveis (da base ativa, por DATA_PAGAMENTO)
+    semanas_rep = sorted([s for s in dfr['semana_pag'].unique() if s])
+
+    # ── FILTRO DE PERÍODO ─────────────────────────────────────────────────────
+    st.markdown('<div class="section-label">Período de análise · semana de pagamento</div>', unsafe_allow_html=True)
+    sel_semanas_r = st.multiselect("Selecione as semanas", options=semanas_rep, default=semanas_rep[:4] if len(semanas_rep)>4 else semanas_rep, key='rep_period')
     if not sel_semanas_r:
         st.warning("Selecione ao menos uma semana.")
         st.stop()
-    dfrF = dfr[dfr['SEMANA_REPRESADO'].isin(sel_semanas_r)]
+
+    dfrF = dfr[dfr['semana_pag'].isin(sel_semanas_r)]
+
+    # Recuperados do histórico (semana de pagamento)
+    dfrh_sel = dfrh[dfrh['semana_pag'].isin(sel_semanas_r)]
+    conc_sel  = dfrh_sel[dfrh_sel['conciliado']]
 
     st.divider()
 
-    # KPIs
+    # ── KPIs GERAIS ───────────────────────────────────────────────────────────
     st.markdown('<div class="section-label">KPIs · período selecionado</div>', unsafe_allow_html=True)
-    total_pend  = len(dfrF)
-    total_rec   = len(conc_df)
-    total_uni   = total_pend + total_rec
-    brl_pend    = dfrF['INSURANCE_COST'].sum()
-    brl_rec     = conc_df['VALOR_CONCILIADO'].sum()
-    brl_total   = brl_pend + brl_rec
-    pct_rec_end = round(total_rec/total_uni*100,1) if total_uni else 0
-    pct_rec_brl = round(brl_rec/brl_total*100,1) if brl_total else 0
+
+    total_bater  = len(dfrF)
+    total_bati   = int(dfrF['ja_bati'].sum())
+    total_pend   = int(dfrF['pendente'].sum())
+    total_rec    = len(conc_sel)
+    brl_bater    = dfrF['INSURANCE_COST'].sum()
+    brl_pend     = dfrF[dfrF['pendente']]['INSURANCE_COST'].sum()
+    brl_rec      = conc_sel['VALOR_CONCILIADO'].sum()
+    pct_bati     = round(total_bati/total_bater*100,1) if total_bater else 0
+    pct_rec      = round(brl_rec/(brl_bater+brl_rec)*100,1) if (brl_bater+brl_rec) else 0
 
     k1,k2,k3,k4,k5,k6 = st.columns(6)
-    k1.metric("End. pendentes", f"{total_pend:,}")
-    k2.metric("End. recuperados", f"{total_rec:,}")
-    k3.metric("% Recuperação (end.)", f"{pct_rec_end}%")
-    k4.metric("R$ pendente", f"R${brl_pend:,.0f}")
-    k5.metric("R$ recuperado", f"R${brl_rec:,.0f}")
-    k6.metric("% Recuperação (R$)", f"{pct_rec_brl}%")
+    k1.metric("Total a bater", f"{total_bater:,}")
+    k2.metric("Já bati", f"{total_bati:,}", f"{pct_bati}%")
+    k3.metric("Pendentes", f"{total_pend:,}", delta_color="inverse")
+    k4.metric("Recuperados", f"{total_rec:,}")
+    k5.metric("R$ pendente", f"R${brl_pend:,.0f}", delta_color="inverse")
+    k6.metric("R$ recuperado", f"R${brl_rec:,.0f}")
 
     st.divider()
 
-    # Barras progresso
-    st.markdown('<div class="section-label">Progresso de recuperação</div>', unsafe_allow_html=True)
-    col_e, col_v = st.columns(2)
-    with col_e:
-        cp = pct_color(pct_rec_end)
-        st.markdown(f"<div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px'><p style='font-size:11px;font-weight:700;text-transform:uppercase;color:#888;margin:0 0 8px'>Endereços Recuperados</p><div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'><span style='font-size:40px;font-weight:800;color:{cp}'>{pct_rec_end}%</span><div style='text-align:right'><div style='font-size:12px;color:#555'>{total_rec:,} recuperados</div><div style='font-size:13px;color:#dc2626;font-weight:700'>{total_pend:,} pendentes</div></div></div><div style='height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden'><div style='height:100%;width:{pct_rec_end}%;background:{cp};border-radius:4px'></div></div></div>", unsafe_allow_html=True)
+    # ── BARRAS DE PROGRESSO ───────────────────────────────────────────────────
+    st.markdown('<div class="section-label">Progresso de varredura e recuperação</div>', unsafe_allow_html=True)
+
+    col_b, col_r = st.columns(2)
+    with col_b:
+        cb = pct_color(pct_bati)
+        st.markdown(f"<div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px'><p style='font-size:11px;font-weight:700;text-transform:uppercase;color:#888;margin:0 0 8px'>Varredura (Já bati)</p><div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'><span style='font-size:40px;font-weight:800;color:{cb}'>{pct_bati}%</span><div style='text-align:right'><div style='font-size:12px;color:#555'>{total_bati:,} bati</div><div style='font-size:13px;color:#dc2626;font-weight:700'>{total_pend:,} faltam</div></div></div><div style='height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden'><div style='height:100%;width:{pct_bati}%;background:{cb};border-radius:4px'></div></div></div>", unsafe_allow_html=True)
         st.caption("Pendentes por processo")
-        df_proc_r = dfrF.groupby('PROCCESS').size().reset_index(name='Qtd').sort_values('Qtd')
+        df_proc_r = dfrF[dfrF['pendente']].groupby('PROCCESS').size().reset_index(name='Qtd').sort_values('Qtd')
         if not df_proc_r.empty:
-            fig = go.Figure(go.Bar(x=df_proc_r['Qtd'], y=df_proc_r['PROCCESS'], orientation='h', marker_color='#1a73e8', text=df_proc_r['Qtd'], textposition='outside', textfont=dict(color='#1a1a2e')))
-            fig.update_layout(height=200, margin=dict(t=5,b=5,l=5,r=40), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#1a1a2e', size=11))
+            fig = go.Figure(go.Bar(x=df_proc_r['Qtd'], y=df_proc_r['PROCCESS'], orientation='h',
+                marker_color='#1a73e8', text=df_proc_r['Qtd'], textposition='outside', textfont=dict(color='#1a1a2e')))
+            fig.update_layout(height=200, margin=dict(t=5,b=5,l=5,r=40), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#1a1a2e',size=11))
             fig.update_xaxes(showgrid=False, showticklabels=False); fig.update_yaxes(showgrid=False, color='#1a1a2e')
             st.plotly_chart(fig, use_container_width=True)
 
-    with col_v:
-        cv = pct_color(pct_rec_brl)
-        st.markdown(f"<div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px'><p style='font-size:11px;font-weight:700;text-transform:uppercase;color:#888;margin:0 0 8px'>Valor Recuperado (R$)</p><div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'><span style='font-size:40px;font-weight:800;color:{cv}'>{pct_rec_brl}%</span><div style='text-align:right'><div style='font-size:12px;color:#555'>R${brl_rec:,.0f} rec.</div><div style='font-size:13px;color:#dc2626;font-weight:700'>R${brl_pend:,.0f} pend.</div></div></div><div style='height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden'><div style='height:100%;width:{pct_rec_brl}%;background:{cv};border-radius:4px'></div></div></div>", unsafe_allow_html=True)
-        st.caption("Pendentes por Range")
-        df_rng_r = dfrF.groupby('RANGE_STATUS').size().reset_index(name='Qtd').sort_values('Qtd')
-        if not df_rng_r.empty:
-            fig2 = go.Figure(go.Bar(x=df_rng_r['Qtd'], y=df_rng_r['RANGE_STATUS'], orientation='h', marker_color='#2563eb', text=df_rng_r['Qtd'], textposition='outside', textfont=dict(color='#1a1a2e')))
-            fig2.update_layout(height=200, margin=dict(t=5,b=5,l=5,r=40), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#1a1a2e', size=11))
-            fig2.update_xaxes(showgrid=False, showticklabels=False); fig2.update_yaxes(showgrid=False, color='#1a1a2e')
+    with col_r:
+        cv = pct_color(pct_rec)
+        st.markdown(f"<div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px'><p style='font-size:11px;font-weight:700;text-transform:uppercase;color:#888;margin:0 0 8px'>Recuperação (R$)</p><div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'><span style='font-size:40px;font-weight:800;color:{cv}'>{pct_rec}%</span><div style='text-align:right'><div style='font-size:12px;color:#555'>R${brl_rec:,.0f} rec.</div><div style='font-size:13px;color:#dc2626;font-weight:700'>R${brl_pend:,.0f} pend.</div></div></div><div style='height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden'><div style='height:100%;width:{pct_rec}%;background:{cv};border-radius:4px'></div></div></div>", unsafe_allow_html=True)
+        st.caption("Recuperados por semana")
+        df_rec_sem = conc_sel.groupby('semana_pag').agg(end=('CHAVE_UNICA','count'), valor=('VALOR_CONCILIADO','sum')).reset_index().sort_values('semana_pag')
+        if not df_rec_sem.empty:
+            fig2 = go.Figure(go.Bar(x=df_rec_sem['semana_pag'], y=df_rec_sem['end'],
+                marker_color='#16a34a', text=df_rec_sem['end'], textposition='outside', textfont=dict(color='#1a1a2e')))
+            fig2.update_layout(height=200, margin=dict(t=5,b=5,l=5,r=10), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#1a1a2e',size=11))
+            fig2.update_xaxes(showgrid=False, color='#888'); fig2.update_yaxes(showgrid=False, showticklabels=False)
             st.plotly_chart(fig2, use_container_width=True)
 
     st.divider()
 
-    # Cards por semana
-    st.markdown('<div class="section-label">Endereços pendentes por semana</div>', unsafe_allow_html=True)
-    st.caption("Os recuperados (histórico) não possuem semana de represamento — exibidos apenas no total acima.")
+    # ── CARDS POR SEMANA ──────────────────────────────────────────────────────
+    st.markdown('<div class="section-label">Evolução por semana de pagamento</div>', unsafe_allow_html=True)
     n_cols_r = min(len(sel_semanas_r), 4)
-    cols_r = st.columns(n_cols_r)
+    cols_r   = st.columns(n_cols_r)
     for i, sem in enumerate(sorted(sel_semanas_r)):
-        df_s = dfrF[dfrF['SEMANA_REPRESADO'] == sem]
-        t_s  = len(df_s); brl_s = df_s['INSURANCE_COST'].sum(); avg_ag = df_s['AGING'].mean() if t_s else 0
-        try: proc_top = df_s.groupby('PROCCESS').size().idxmax()
-        except: proc_top = '-'
+        df_s   = dfrF[dfrF['semana_pag'] == sem]
+        tot_s  = len(df_s)
+        bati_s = int(df_s['ja_bati'].sum())
+        pend_s = int(df_s['pendente'].sum())
+        pp_s   = round(bati_s/tot_s*100,1) if tot_s else 0
+        cp_s   = pct_color(pp_s)
+        brl_s  = df_s['INSURANCE_COST'].sum()
+        # Recuperados do histórico para essa semana
+        rec_s  = len(dfrh[(dfrh['semana_pag']==sem) & dfrh['conciliado']])
+        brl_r_s= dfrh[(dfrh['semana_pag']==sem) & dfrh['conciliado']]['VALOR_CONCILIADO'].sum()
         with cols_r[i % n_cols_r]:
-            st.markdown(f"<div style='border:1px solid #e5e7eb;background:#fff;border-radius:14px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:8px'><div style='font-family:monospace;font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:6px'>{sem}</div><div style='font-size:11px;color:#888;margin-bottom:10px'>R${brl_s:,.0f} · {avg_ag:.0f}d aging</div><div style='height:1px;background:#f3f4f6;margin-bottom:10px'></div><div style='font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:4px'>Endereços pendentes</div><div style='font-size:28px;font-weight:800;color:#dc2626;margin-bottom:4px'>{t_s:,}</div><div style='font-size:11px;color:#6b7280'>Principal: <b>{proc_top}</b></div></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='border:1px solid #e5e7eb;background:#fff;border-radius:14px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:8px'><div style='font-family:monospace;font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:6px'>{sem}</div><div style='font-size:11px;color:#888;margin-bottom:10px'>R${brl_s:,.0f} exposição</div><div style='height:1px;background:#f3f4f6;margin-bottom:10px'></div><div style='font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:4px'>A bater / Já bati / Pendente</div><div style='font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:4px'>{tot_s:,} · <span style='color:#1a73e8'>{bati_s:,}</span> · <span style='color:#dc2626'>{pend_s:,}</span></div><div style='height:6px;background:#f3f4f6;border-radius:3px;overflow:hidden;margin-bottom:10px'><div style='height:100%;width:{pp_s}%;background:{cp_s};border-radius:3px'></div></div><div style='font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:4px'>Recuperados</div><div style='font-size:20px;font-weight:800;color:#16a34a'>{rec_s:,} <span style='font-size:11px;color:#555'>· R${brl_r_s:,.0f}</span></div></div>", unsafe_allow_html=True)
 
     st.divider()
 
-    # Detalhamento
+    # ── DETALHAMENTO ──────────────────────────────────────────────────────────
     st.markdown('<div class="section-label">Detalhamento · filtros & exportação</div>', unsafe_allow_html=True)
-    fa, fb = st.columns(2)
+    fa, fb, fc = st.columns(3)
     with fa: sel_proc_r = st.multiselect("Processo", sorted(dfrF['PROCCESS'].unique()), key='rep_proc')
     with fb: sel_rng_r  = st.multiselect("Range", sorted(dfrF['RANGE_STATUS'].unique()), key='rep_rng')
+    with fc: sel_sts_r  = st.multiselect("Status", ["Pendente","Já bati","Recuperado"], key='rep_sts')
     dfrD = dfrF.copy()
     if sel_proc_r: dfrD = dfrD[dfrD['PROCCESS'].isin(sel_proc_r)]
     if sel_rng_r:  dfrD = dfrD[dfrD['RANGE_STATUS'].isin(sel_rng_r)]
-    cols_show_r = [c for c in ['SEMANA_REPRESADO','FBM_ISSUE_ID','TITULO','ADDRESS_ID_FROM','PROCCESS','RANGE_STATUS','INSURANCE_COST','AGING'] if c in dfrD.columns]
+    if sel_sts_r:
+        masks = []
+        if "Pendente"   in sel_sts_r: masks.append(dfrD['pendente'])
+        if "Já bati"    in sel_sts_r: masks.append(dfrD['ja_bati'] & ~dfrD['recuperado'])
+        if "Recuperado" in sel_sts_r: masks.append(dfrD['recuperado'])
+        if masks:
+            import functools, operator
+            dfrD = dfrD[functools.reduce(operator.or_, masks)]
+    dfrD['STATUS_CALC'] = dfrD.apply(lambda r: 'Recuperado' if r['recuperado'] else ('Já bati' if r['ja_bati'] else 'Pendente'), axis=1)
+    cols_show_r = [c for c in ['semana_pag','FBM_ISSUE_ID','TITULO','ADDRESS_ID_FROM','PROCCESS','RANGE_STATUS','STATUS_CALC','INSURANCE_COST','AGING'] if c in dfrD.columns]
     ci_r, cb_r = st.columns([4,1])
-    ci_r.caption(f"{len(dfrD):,} endereços pendentes")
+    ci_r.caption(f"{len(dfrD):,} endereços · {dfrD['pendente'].sum():,} pendentes · {dfrD['ja_bati'].sum():,} bati")
     with cb_r:
         st.download_button("⬇️ Exportar CSV", dfrD[cols_show_r].to_csv(index=False).encode('utf-8'), "represado_brsp06.csv", "text/csv", use_container_width=True)
     st.dataframe(dfrD[cols_show_r].reset_index(drop=True), use_container_width=True, hide_index=True,
         column_config={'INSURANCE_COST': st.column_config.NumberColumn("R$", format="R$%.2f"), 'AGING': st.column_config.NumberColumn("Aging (d)")})
-
-
-# Footer
-st.markdown(f"<div style='text-align:center;color:#9ca3af;font-size:11px;margin-top:24px'>Loss Prevention · BRSP06 · {datetime.now().strftime('%d/%m/%Y %H:%M')}</div>", unsafe_allow_html=True)

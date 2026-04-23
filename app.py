@@ -28,13 +28,23 @@ CSV_PI2_HIST_URL = "https://raw.githubusercontent.com/ViniciusVauna/ARQUIVOSLP/m
 @st.cache_data(ttl=600, show_spinner=False)
 def load_pi2_hist():
     df = pd.read_csv(CSV_PI2_HIST_URL)
-    for col in ['Status','Range','Issue','Usuario','Week','Week_pagamento']:
-        if col in df.columns:
-            df[col] = df[col].fillna('').astype(str).str.strip()
-    for col in ['Valor Recuperado','Valor Unitario','Total Issue']:
+    # Normaliza nomes de colunas: remove espaços extras
+    df.columns = df.columns.str.strip()
+    for col in df.select_dtypes('object').columns:
+        df[col] = df[col].fillna('').astype(str).str.strip()
+    for col in ['Total Conciliado','Valor Recuperado','Valor Unitario','Total Issue']:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col].astype(str).str.replace(',','.'), errors='coerce').fillna(0)
-    df['recuperado'] = df['Status'].str.lower().isin(['conciliado','issue a conciliar'])
+    # Coluna de semana de pagamento pode ter espaço: "Week Pagamento"
+    if 'Week Pagamento' in df.columns:
+        df['semana_pag_hist'] = df['Week Pagamento'].astype(str).str.strip()
+    elif 'Week_pagamento' in df.columns:
+        df['semana_pag_hist'] = df['Week_pagamento'].astype(str).str.strip()
+    else:
+        df['semana_pag_hist'] = ''
+    # Coluna de valor recuperado
+    df['valor_rec'] = df['Total Conciliado'] if 'Total Conciliado' in df.columns else (df['Valor Recuperado'] if 'Valor Recuperado' in df.columns else 0)
+    df['recuperado'] = df['Status'].str.lower().isin(['conciliado','issue a conciliar']) if 'Status' in df.columns else False
     return df
 
 import re as _re
@@ -399,8 +409,10 @@ elif st.session_state.page == 'pi2':
             st.error(f"Erro ao carregar PI 2.0: {e}")
             st.stop()
 
-    # Semanas disponíveis (Semana de Pagamento da base ativa)
-    semanas_pi2 = sorted([s for s in df2['semana_norm'].unique() if s])
+    # Filtra apenas linhas com semana preenchida
+    df2 = df2[df2['semana_norm'].str.startswith('W')]
+
+    semanas_pi2 = sorted(df2['semana_norm'].unique())
 
     # ── FILTRO DE PERÍODO ─────────────────────────────────────────────────────
     st.markdown('<div class="section-label">Período de análise · semana de pagamento</div>', unsafe_allow_html=True)
@@ -411,52 +423,48 @@ elif st.session_state.page == 'pi2':
 
     df2f = df2[df2['semana_norm'].isin(sel_semanas)]
 
-    # Histórico filtrado pela semana de pagamento
-    if pi2_hist_ok and df2h is not None:
-        semana_col_hist = 'Week_pagamento' if 'Week_pagamento' in df2h.columns else ('Week' if 'Week' in df2h.columns else None)
-        if semana_col_hist:
-            df2h_sel = df2h[df2h[semana_col_hist].isin(sel_semanas)]
-        else:
-            df2h_sel = df2h
-        rec_issues    = df2h_sel['Issue'].nunique() if 'Issue' in df2h_sel.columns else 0
-        brl_rec_pi2   = df2h_sel['Valor Recuperado'].sum() if 'Valor Recuperado' in df2h_sel.columns else 0
+    # Histórico filtrado pela semana
+    if pi2_hist_ok and df2h is not None and len(df2h) > 0:
+        df2h_sel    = df2h[df2h['semana_pag_hist'].isin(sel_semanas)]
+        rec_issues  = df2h_sel['Issue'].nunique() if 'Issue' in df2h_sel.columns else 0
+        brl_rec_pi2 = df2h_sel['valor_rec'].sum()
     else:
         df2h_sel = None; rec_issues = 0; brl_rec_pi2 = 0
 
     st.divider()
 
-    # ── KPIs GERAIS ───────────────────────────────────────────────────────────
+    # ── KPIs ──────────────────────────────────────────────────────────────────
     st.markdown('<div class="section-label">KPIs · período selecionado</div>', unsafe_allow_html=True)
 
-    total_end     = len(df2f)
-    total_issues  = df2f['ISSUE'].nunique()
-    pend_end      = int(df2f['pendente'].sum())
-    trat_end      = int(df2f['tratado'].sum())
-    pct_end       = round(trat_end/total_end*100,1) if total_end else 0
-    brl_total     = df2f['INSURANCE_COST'].sum()
-    brl_pend      = df2f[df2f['pendente']]['INSURANCE_COST'].sum()
-    issue_status  = df2f.groupby('ISSUE')['pendente'].sum()
-    issues_res    = int((issue_status == 0).sum())
-    issues_pend   = int((issue_status > 0).sum())
-    pct_issues    = round(issues_res/total_issues*100,1) if total_issues else 0
+    total_end    = len(df2f)
+    total_issues = df2f['ISSUE'].nunique()
+    pend_end     = int(df2f['pendente'].sum())
+    conc_end     = int(df2f['concluido'].sum())
+    pct_conc     = round(conc_end/total_end*100,1) if total_end else 0
+    brl_total    = df2f['INSURANCE_COST'].sum()
+    brl_pend     = df2f[df2f['pendente']]['INSURANCE_COST'].sum()
+    issue_status = df2f.groupby('ISSUE')['pendente'].sum()
+    issues_conc  = int((issue_status == 0).sum())
+    issues_pend  = int((issue_status > 0).sum())
+    pct_iss_conc = round(issues_conc/total_issues*100,1) if total_issues else 0
 
     k1,k2,k3,k4,k5,k6 = st.columns(6)
     k1.metric("Total endereços", f"{total_end:,}")
-    k2.metric("Issues únicos", f"{total_issues:,}")
-    k3.metric("Tratados", f"{trat_end:,}", f"{pct_end}%")
-    k4.metric("Pendentes", f"{pend_end:,}", delta_color="inverse")
-    k5.metric("Issues recuperados", f"{rec_issues:,}")
+    k2.metric("Concluídos", f"{conc_end:,}", f"{pct_conc}%")
+    k3.metric("Pendentes", f"{pend_end:,}", delta_color="inverse")
+    k4.metric("Issues resolvidos", f"{issues_conc:,} / {total_issues:,}")
+    k5.metric("R$ pendente", f"R${brl_pend:,.0f}", delta_color="inverse")
     k6.metric("R$ recuperado", f"R${brl_rec_pi2:,.0f}")
 
     st.divider()
 
     # ── BARRAS DE PROGRESSO ───────────────────────────────────────────────────
-    st.markdown('<div class="section-label">Progresso de varredura e recuperação</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-label">Progresso</div>', unsafe_allow_html=True)
     col_b2, col_r2 = st.columns(2)
 
     with col_b2:
-        cb2 = pct_color(pct_end)
-        st.markdown(f"<div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px'><p style='font-size:11px;font-weight:700;text-transform:uppercase;color:#888;margin:0 0 8px'>Endereços Tratados</p><div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'><span style='font-size:40px;font-weight:800;color:{cb2}'>{pct_end}%</span><div style='text-align:right'><div style='font-size:12px;color:#555'>{trat_end:,} tratados</div><div style='font-size:13px;color:#dc2626;font-weight:700'>{pend_end:,} faltam</div></div></div><div style='height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden'><div style='height:100%;width:{pct_end}%;background:{cb2};border-radius:4px'></div></div></div>", unsafe_allow_html=True)
+        cb2 = pct_color(pct_conc)
+        st.markdown(f"<div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px'><p style='font-size:11px;font-weight:700;text-transform:uppercase;color:#888;margin:0 0 8px'>Endereços Concluídos</p><div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'><span style='font-size:40px;font-weight:800;color:{cb2}'>{pct_conc}%</span><div style='text-align:right'><div style='font-size:12px;color:#555'>{conc_end:,} concluídos</div><div style='font-size:13px;color:#dc2626;font-weight:700'>{pend_end:,} pendentes</div></div></div><div style='height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden'><div style='height:100%;width:{pct_conc}%;background:{cb2};border-radius:4px'></div></div></div>", unsafe_allow_html=True)
         st.caption("Pendentes por processo")
         df_pb2 = df2f[df2f['pendente']].groupby('PROCESSO_LOST').size().reset_index(name='Qtd').sort_values('Qtd')
         if not df_pb2.empty:
@@ -467,8 +475,8 @@ elif st.session_state.page == 'pi2':
             st.plotly_chart(fig, use_container_width=True)
 
     with col_r2:
-        ci2 = pct_color(pct_issues)
-        st.markdown(f"<div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px'><p style='font-size:11px;font-weight:700;text-transform:uppercase;color:#888;margin:0 0 8px'>Issues Únicos Resolvidos</p><div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'><span style='font-size:40px;font-weight:800;color:{ci2}'>{pct_issues}%</span><div style='text-align:right'><div style='font-size:12px;color:#555'>{issues_res:,} resolvidos</div><div style='font-size:13px;color:#dc2626;font-weight:700'>{issues_pend:,} faltam</div></div></div><div style='height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden'><div style='height:100%;width:{pct_issues}%;background:{ci2};border-radius:4px'></div></div></div>", unsafe_allow_html=True)
+        ci2 = pct_color(pct_iss_conc)
+        st.markdown(f"<div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px'><p style='font-size:11px;font-weight:700;text-transform:uppercase;color:#888;margin:0 0 8px'>Issues Únicos Resolvidos</p><div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'><span style='font-size:40px;font-weight:800;color:{ci2}'>{pct_iss_conc}%</span><div style='text-align:right'><div style='font-size:12px;color:#555'>{issues_conc:,} resolvidos</div><div style='font-size:13px;color:#dc2626;font-weight:700'>{issues_pend:,} pendentes</div></div></div><div style='height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden'><div style='height:100%;width:{pct_iss_conc}%;background:{ci2};border-radius:4px'></div></div></div>", unsafe_allow_html=True)
         st.caption("Pendentes por Range")
         df_rng = df2f[df2f['pendente']].groupby('Range').size().reset_index(name='Qtd').sort_values('Qtd')
         if not df_rng.empty:
@@ -485,46 +493,79 @@ elif st.session_state.page == 'pi2':
     n_cols4 = min(len(sel_semanas), 4)
     cols4   = st.columns(n_cols4)
     for i, sem in enumerate(sorted(sel_semanas)):
-        df_s   = df2f[df2f['semana_norm'] == sem]
-        t_end  = len(df_s); p_end = int(df_s['pendente'].sum()); tr_end = int(df_s['tratado'].sum())
-        pp     = round(tr_end/t_end*100,1) if t_end else 0; cp = pct_color(pp)
-        brl_s  = df_s['INSURANCE_COST'].sum()
-        iss_s  = df_s['ISSUE'].nunique()
-        is_st  = df_s.groupby('ISSUE')['pendente'].sum()
-        iss_r  = int((is_st == 0).sum()); iss_p = int((is_st > 0).sum())
-        pp_i   = round(iss_r/iss_s*100,1) if iss_s else 0; ci3 = pct_color(pp_i)
-        # Recuperados do histórico nessa semana
-        if pi2_hist_ok and df2h is not None and semana_col_hist:
-            rec_s   = int((df2h[semana_col_hist] == sem).sum())
-            brl_r_s = df2h[df2h[semana_col_hist] == sem]['Valor Recuperado'].sum() if 'Valor Recuperado' in df2h.columns else 0
+        df_s    = df2f[df2f['semana_norm'] == sem]
+        tot_s   = len(df_s)
+        pend_s  = int(df_s['pendente'].sum())
+        conc_s  = int(df_s['concluido'].sum())
+        pp_s    = round(conc_s/tot_s*100,1) if tot_s else 0
+        cp_s    = pct_color(pp_s)
+        brl_s   = df_s['INSURANCE_COST'].sum()
+        iss_s   = df_s['ISSUE'].nunique()
+        is_st   = df_s.groupby('ISSUE')['pendente'].sum()
+        iss_c   = int((is_st == 0).sum())
+        iss_p   = int((is_st > 0).sum())
+        pp_i    = round(iss_c/iss_s*100,1) if iss_s else 0
+        ci3     = pct_color(pp_i)
+        if pi2_hist_ok and df2h is not None:
+            mask_s  = df2h['semana_pag_hist'] == sem
+            rec_s   = int(mask_s.sum())
+            brl_r_s = float(df2h[mask_s]['valor_rec'].sum())
         else:
-            rec_s = 0; brl_r_s = 0
+            rec_s = 0; brl_r_s = 0.0
         with cols4[i % n_cols4]:
-            st.markdown(f"<div style='border:1px solid #e5e7eb;background:#fff;border-radius:14px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:8px'><div style='font-family:monospace;font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:6px'>{sem}</div><div style='font-size:11px;color:#888;margin-bottom:10px'>R${brl_s:,.0f} · {t_end:,} end.</div><div style='height:1px;background:#f3f4f6;margin-bottom:10px'></div><div style='font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:4px'>A bater · Tratei · Faltam</div><div style='font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:4px'>{t_end:,} · <span style='color:#1a73e8'>{tr_end:,}</span> · <span style='color:#dc2626'>{p_end:,}</span></div><div style='height:6px;background:#f3f4f6;border-radius:3px;overflow:hidden;margin-bottom:10px'><div style='height:100%;width:{pp}%;background:{cp};border-radius:3px'></div></div><div style='font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:4px'>Issues únicos resolvidos</div><div style='display:flex;justify-content:space-between;margin-bottom:4px'><span style='font-size:16px;font-weight:800;color:{ci3}'>{pp_i}%</span><span style='font-size:11px;color:#dc2626;font-weight:700'>{iss_p:,} faltam</span></div><div style='height:6px;background:#f3f4f6;border-radius:3px;overflow:hidden;margin-bottom:10px'><div style='height:100%;width:{pp_i}%;background:{ci3};border-radius:3px'></div></div><div style='font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:4px'>Recuperados</div><div style='font-size:16px;font-weight:800;color:#16a34a'>{rec_s:,} <span style='font-size:11px;color:#555'>· R${brl_r_s:,.0f}</span></div></div>", unsafe_allow_html=True)
+            st.markdown(f"""
+            <div style='border:1px solid #e5e7eb;background:#fff;border-radius:14px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:8px'>
+                <div style='font-family:monospace;font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:6px'>{sem}</div>
+                <div style='font-size:11px;color:#888;margin-bottom:10px'>R${brl_s:,.0f} · {tot_s:,} end. · {iss_s} issues</div>
+                <div style='height:1px;background:#f3f4f6;margin-bottom:10px'></div>
+
+                <div style='font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:5px'>Endereços</div>
+                <div style='display:flex;justify-content:space-between;margin-bottom:4px'>
+                    <div><span style='font-size:9px;color:#888'>Pendentes </span><span style='font-size:16px;font-weight:800;color:#dc2626'>{pend_s:,}</span></div>
+                    <div><span style='font-size:9px;color:#888'>Concluídos </span><span style='font-size:16px;font-weight:800;color:#1a73e8'>{conc_s:,}</span></div>
+                    <div><span style='font-size:14px;font-weight:800;color:{cp_s}'>{pp_s}%</span></div>
+                </div>
+                <div style='height:6px;background:#f3f4f6;border-radius:3px;overflow:hidden;margin-bottom:12px'>
+                    <div style='height:100%;width:{pp_s}%;background:{cp_s};border-radius:3px'></div>
+                </div>
+
+                <div style='font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:5px'>Issues únicos</div>
+                <div style='display:flex;justify-content:space-between;margin-bottom:4px'>
+                    <div><span style='font-size:9px;color:#888'>Pendentes </span><span style='font-size:16px;font-weight:800;color:#dc2626'>{iss_p:,}</span></div>
+                    <div><span style='font-size:9px;color:#888'>Resolvidos </span><span style='font-size:16px;font-weight:800;color:#1a73e8'>{iss_c:,}</span></div>
+                    <div><span style='font-size:14px;font-weight:800;color:{ci3}'>{pp_i}%</span></div>
+                </div>
+                <div style='height:6px;background:#f3f4f6;border-radius:3px;overflow:hidden;margin-bottom:12px'>
+                    <div style='height:100%;width:{pp_i}%;background:{ci3};border-radius:3px'></div>
+                </div>
+
+                <div style='height:1px;background:#f3f4f6;margin-bottom:10px'></div>
+                <div style='font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:4px'>Recuperados (histórico)</div>
+                <div style='font-size:20px;font-weight:800;color:#16a34a'>{rec_s:,} <span style='font-size:11px;color:#555;font-weight:400'>· R${brl_r_s:,.0f}</span></div>
+            </div>""", unsafe_allow_html=True)
 
     st.divider()
 
     # ── DETALHAMENTO ──────────────────────────────────────────────────────────
     st.markdown('<div class="section-label">Detalhamento · filtros & exportação</div>', unsafe_allow_html=True)
     fa, fb = st.columns(2)
-    with fa: sel_proc2  = st.multiselect("Processo", sorted(df2f['PROCESSO_LOST'].unique()))
-    with fb:
-        sel_sts2 = st.multiselect("Status", ["Pendente","Tratado"])
+    with fa: sel_proc2 = st.multiselect("Processo", sorted(df2f['PROCESSO_LOST'].unique()))
+    with fb: sel_sts2  = st.multiselect("Status", ["Pendente","Concluído"])
     df2d = df2f.copy()
     if sel_proc2: df2d = df2d[df2d['PROCESSO_LOST'].isin(sel_proc2)]
     if sel_sts2:
-        if "Pendente" in sel_sts2 and "Tratado" not in sel_sts2:
+        if "Pendente" in sel_sts2 and "Concluído" not in sel_sts2:
             df2d = df2d[df2d['pendente']]
-        elif "Tratado" in sel_sts2 and "Pendente" not in sel_sts2:
-            df2d = df2d[df2d['tratado']]
-    cols2_show = [c for c in ['ISSUE','ITEM_TITLE_LOST','ENDERECO_LOST','ADDRESS_ID_TO','PROCESSO_LOST','Range','Status_busca','Status_Conciliacao','INSURANCE_COST','Aging','Semana de Pagamento'] if c in df2d.columns]
+        elif "Concluído" in sel_sts2 and "Pendente" not in sel_sts2:
+            df2d = df2d[df2d['concluido']]
+    df2d['STATUS_CALC'] = df2d['pendente'].map({True:'Pendente', False:'Concluído'})
+    cols2_show = [c for c in ['semana_norm','ISSUE','ITEM_TITLE_LOST','ENDERECO_LOST','PROCESSO_LOST','Range','STATUS_CALC','INSURANCE_COST','Aging'] if c in df2d.columns]
     ci2b, cb2b = st.columns([4,1])
-    ci2b.caption(f"{len(df2d):,} endereços · {df2d['ISSUE'].nunique():,} issues únicos")
+    ci2b.caption(f"{len(df2d):,} endereços · {df2d['ISSUE'].nunique():,} issues")
     with cb2b:
         st.download_button("⬇️ Exportar CSV", df2d[cols2_show].to_csv(index=False).encode('utf-8'), "pi2_brsp06.csv", "text/csv", use_container_width=True)
     st.dataframe(df2d[cols2_show].reset_index(drop=True), use_container_width=True, hide_index=True,
         column_config={'INSURANCE_COST': st.column_config.NumberColumn("R$", format="R$%.2f"), 'Aging': st.column_config.NumberColumn("Aging (d)")})
-
 
 elif st.session_state.page == 'found_represado':
     with st.spinner("Carregando Found Represado..."):

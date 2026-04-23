@@ -20,7 +20,30 @@ def load_data():
 
 FOUND_SET = {'Found Inv.', 'Found LP', 'Found Inv', 'Found LP.'}
 
-CSV_PI2_URL = "https://raw.githubusercontent.com/ViniciusVauna/ARQUIVOSLP/main/data_pi2.csv"
+CSV_PI2_URL       = "https://raw.githubusercontent.com/ViniciusVauna/ARQUIVOSLP/main/data_pi2.csv"
+CSV_REPRESADO_URL      = "https://raw.githubusercontent.com/ViniciusVauna/ARQUIVOSLP/main/data_found_represado.csv"
+CSV_REPRESADO_HIST_URL = "https://raw.githubusercontent.com/ViniciusVauna/ARQUIVOSLP/main/data_found_represado_hist.csv"
+
+@st.cache_data(ttl=600, show_spinner=False)
+def load_represado():
+    df = pd.read_csv(CSV_REPRESADO_URL)
+    df['INSURANCE_COST'] = pd.to_numeric(df['INSURANCE_COST'].astype(str).str.replace(',','.'), errors='coerce').fillna(0)
+    df['AGING'] = pd.to_numeric(df['AGING'], errors='coerce').fillna(0).astype(int)
+    for col in ['SEMANA_REPRESADO','PROCCESS','RANGE_STATUS','FBM_ISSUE_ID','ADDRESS_ID_FROM']:
+        if col in df.columns:
+            df[col] = df[col].fillna('').astype(str).str.strip()
+    return df
+
+@st.cache_data(ttl=600, show_spinner=False)
+def load_represado_hist():
+    df = pd.read_csv(CSV_REPRESADO_HIST_URL)
+    df['VALOR_CONCILIADO'] = pd.to_numeric(df['VALOR_CONCILIADO'], errors='coerce').fillna(0)
+    df['INSURANCE_COST']   = pd.to_numeric(df['INSURANCE_COST'], errors='coerce').fillna(0)
+    for col in ['STATUS','PROCCESS','FBM_ISSUE_ID','USUARIO']:
+        if col in df.columns:
+            df[col] = df[col].fillna('').astype(str).str.strip()
+    df['conciliado'] = df['STATUS'] == 'Conciliado'
+    return df
 
 @st.cache_data(ttl=600, show_spinner=False)
 def load_pi2():
@@ -508,12 +531,105 @@ elif st.session_state.page == 'found_vendavel':
     </div>""", unsafe_allow_html=True)
 
 elif st.session_state.page == 'found_represado':
-    st.markdown("""
-    <div class="placeholder-box">
-        <div style='font-size:48px;margin-bottom:16px'>🔒</div>
-        <div style='font-size:18px;font-weight:700;color:#111827;margin-bottom:8px'>Evolução Found Represado</div>
-        <div style='font-size:13px;color:#6b7280'>Aguardando dados · em breve</div>
-    </div>""", unsafe_allow_html=True)
+    with st.spinner("Carregando Found Represado..."):
+        try:
+            dfr  = load_represado()
+            dfrh = load_represado_hist()
+        except Exception as e:
+            st.error(f"Erro ao carregar Found Represado: {e}")
+            st.stop()
+
+    semanas_rep = sorted(dfr['SEMANA_REPRESADO'].unique())
+    conc_df = dfrh[dfrh['conciliado']]
+
+    st.markdown('<div class="section-label">Período de análise</div>', unsafe_allow_html=True)
+    sel_semanas_r = st.multiselect("Semanas de represamento", options=semanas_rep, default=semanas_rep, key='rep_period')
+    if not sel_semanas_r:
+        st.warning("Selecione ao menos uma semana.")
+        st.stop()
+    dfrF = dfr[dfr['SEMANA_REPRESADO'].isin(sel_semanas_r)]
+
+    st.divider()
+
+    # KPIs
+    st.markdown('<div class="section-label">KPIs · período selecionado</div>', unsafe_allow_html=True)
+    total_pend  = len(dfrF)
+    total_rec   = len(conc_df)
+    total_uni   = total_pend + total_rec
+    brl_pend    = dfrF['INSURANCE_COST'].sum()
+    brl_rec     = conc_df['VALOR_CONCILIADO'].sum()
+    brl_total   = brl_pend + brl_rec
+    pct_rec_end = round(total_rec/total_uni*100,1) if total_uni else 0
+    pct_rec_brl = round(brl_rec/brl_total*100,1) if brl_total else 0
+
+    k1,k2,k3,k4,k5,k6 = st.columns(6)
+    k1.metric("End. pendentes", f"{total_pend:,}")
+    k2.metric("End. recuperados", f"{total_rec:,}")
+    k3.metric("% Recuperação (end.)", f"{pct_rec_end}%")
+    k4.metric("R$ pendente", f"R${brl_pend:,.0f}")
+    k5.metric("R$ recuperado", f"R${brl_rec:,.0f}")
+    k6.metric("% Recuperação (R$)", f"{pct_rec_brl}%")
+
+    st.divider()
+
+    # Barras progresso
+    st.markdown('<div class="section-label">Progresso de recuperação</div>', unsafe_allow_html=True)
+    col_e, col_v = st.columns(2)
+    with col_e:
+        cp = pct_color(pct_rec_end)
+        st.markdown(f"<div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px'><p style='font-size:11px;font-weight:700;text-transform:uppercase;color:#888;margin:0 0 8px'>Endereços Recuperados</p><div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'><span style='font-size:40px;font-weight:800;color:{cp}'>{pct_rec_end}%</span><div style='text-align:right'><div style='font-size:12px;color:#555'>{total_rec:,} recuperados</div><div style='font-size:13px;color:#dc2626;font-weight:700'>{total_pend:,} pendentes</div></div></div><div style='height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden'><div style='height:100%;width:{pct_rec_end}%;background:{cp};border-radius:4px'></div></div></div>", unsafe_allow_html=True)
+        st.caption("Pendentes por processo")
+        df_proc_r = dfrF.groupby('PROCCESS').size().reset_index(name='Qtd').sort_values('Qtd')
+        if not df_proc_r.empty:
+            fig = go.Figure(go.Bar(x=df_proc_r['Qtd'], y=df_proc_r['PROCCESS'], orientation='h', marker_color='#1a73e8', text=df_proc_r['Qtd'], textposition='outside', textfont=dict(color='#1a1a2e')))
+            fig.update_layout(height=200, margin=dict(t=5,b=5,l=5,r=40), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#1a1a2e', size=11))
+            fig.update_xaxes(showgrid=False, showticklabels=False); fig.update_yaxes(showgrid=False, color='#1a1a2e')
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col_v:
+        cv = pct_color(pct_rec_brl)
+        st.markdown(f"<div style='background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px'><p style='font-size:11px;font-weight:700;text-transform:uppercase;color:#888;margin:0 0 8px'>Valor Recuperado (R$)</p><div style='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px'><span style='font-size:40px;font-weight:800;color:{cv}'>{pct_rec_brl}%</span><div style='text-align:right'><div style='font-size:12px;color:#555'>R${brl_rec:,.0f} rec.</div><div style='font-size:13px;color:#dc2626;font-weight:700'>R${brl_pend:,.0f} pend.</div></div></div><div style='height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden'><div style='height:100%;width:{pct_rec_brl}%;background:{cv};border-radius:4px'></div></div></div>", unsafe_allow_html=True)
+        st.caption("Pendentes por Range")
+        df_rng_r = dfrF.groupby('RANGE_STATUS').size().reset_index(name='Qtd').sort_values('Qtd')
+        if not df_rng_r.empty:
+            fig2 = go.Figure(go.Bar(x=df_rng_r['Qtd'], y=df_rng_r['RANGE_STATUS'], orientation='h', marker_color='#2563eb', text=df_rng_r['Qtd'], textposition='outside', textfont=dict(color='#1a1a2e')))
+            fig2.update_layout(height=200, margin=dict(t=5,b=5,l=5,r=40), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#1a1a2e', size=11))
+            fig2.update_xaxes(showgrid=False, showticklabels=False); fig2.update_yaxes(showgrid=False, color='#1a1a2e')
+            st.plotly_chart(fig2, use_container_width=True)
+
+    st.divider()
+
+    # Cards por semana
+    st.markdown('<div class="section-label">Endereços pendentes por semana</div>', unsafe_allow_html=True)
+    st.caption("Os recuperados (histórico) não possuem semana de represamento — exibidos apenas no total acima.")
+    n_cols_r = min(len(sel_semanas_r), 4)
+    cols_r = st.columns(n_cols_r)
+    for i, sem in enumerate(sorted(sel_semanas_r)):
+        df_s = dfrF[dfrF['SEMANA_REPRESADO'] == sem]
+        t_s  = len(df_s); brl_s = df_s['INSURANCE_COST'].sum(); avg_ag = df_s['AGING'].mean() if t_s else 0
+        try: proc_top = df_s.groupby('PROCCESS').size().idxmax()
+        except: proc_top = '-'
+        with cols_r[i % n_cols_r]:
+            st.markdown(f"<div style='border:1px solid #e5e7eb;background:#fff;border-radius:14px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,0.06);margin-bottom:8px'><div style='font-family:monospace;font-size:13px;font-weight:700;color:#1a1a2e;margin-bottom:6px'>{sem}</div><div style='font-size:11px;color:#888;margin-bottom:10px'>R${brl_s:,.0f} · {avg_ag:.0f}d aging</div><div style='height:1px;background:#f3f4f6;margin-bottom:10px'></div><div style='font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9ca3af;margin-bottom:4px'>Endereços pendentes</div><div style='font-size:28px;font-weight:800;color:#dc2626;margin-bottom:4px'>{t_s:,}</div><div style='font-size:11px;color:#6b7280'>Principal: <b>{proc_top}</b></div></div>", unsafe_allow_html=True)
+
+    st.divider()
+
+    # Detalhamento
+    st.markdown('<div class="section-label">Detalhamento · filtros & exportação</div>', unsafe_allow_html=True)
+    fa, fb = st.columns(2)
+    with fa: sel_proc_r = st.multiselect("Processo", sorted(dfrF['PROCCESS'].unique()), key='rep_proc')
+    with fb: sel_rng_r  = st.multiselect("Range", sorted(dfrF['RANGE_STATUS'].unique()), key='rep_rng')
+    dfrD = dfrF.copy()
+    if sel_proc_r: dfrD = dfrD[dfrD['PROCCESS'].isin(sel_proc_r)]
+    if sel_rng_r:  dfrD = dfrD[dfrD['RANGE_STATUS'].isin(sel_rng_r)]
+    cols_show_r = [c for c in ['SEMANA_REPRESADO','FBM_ISSUE_ID','TITULO','ADDRESS_ID_FROM','PROCCESS','RANGE_STATUS','INSURANCE_COST','AGING'] if c in dfrD.columns]
+    ci_r, cb_r = st.columns([4,1])
+    ci_r.caption(f"{len(dfrD):,} endereços pendentes")
+    with cb_r:
+        st.download_button("⬇️ Exportar CSV", dfrD[cols_show_r].to_csv(index=False).encode('utf-8'), "represado_brsp06.csv", "text/csv", use_container_width=True)
+    st.dataframe(dfrD[cols_show_r].reset_index(drop=True), use_container_width=True, hide_index=True,
+        column_config={'INSURANCE_COST': st.column_config.NumberColumn("R$", format="R$%.2f"), 'AGING': st.column_config.NumberColumn("Aging (d)")})
+
 
 # Footer
 st.markdown(f"<div style='text-align:center;color:#9ca3af;font-size:11px;margin-top:24px'>Loss Prevention · BRSP06 · {datetime.now().strftime('%d/%m/%Y %H:%M')}</div>", unsafe_allow_html=True)
